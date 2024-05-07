@@ -29,7 +29,7 @@ class PortfolioSimulator:
         self.daily_log_returns = np.log(1 + np.array(list(annual_returns.values())) / 100) / 252
         # Handle outliers in log returns
         self.portfolio_data = self.handle_outliers(portfolio_data)
-
+        self.annual_returns = annual_returns
         self.weights = weights
         self.nSim = num_simulation
         self.nTrading = num_trading_days
@@ -87,7 +87,7 @@ class PortfolioSimulator:
         self.confidence_interval = portfolio_cumulative_returns.iloc[-1].quantile(q=[0.025, 0.975])
         
         return portfolio_cumulative_returns
-    
+
 
 
     def plot_simulation(self):
