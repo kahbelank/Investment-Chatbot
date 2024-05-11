@@ -35,6 +35,8 @@ class PortfolioSimulator:
         self.nTrading = num_trading_days
         self.simulated_return = pd.DataFrame()
 
+    #this function ensures extreme values in stock price changes are adjusted to more typical levels. 
+    #anything lesser than the lowest 1% or anything more than the highest 99% will be considered extreme
     def handle_outliers(self, data, limits=(0.01, 0.99)):
         """ Cap the outliers in log returns within specified quantile limits directly in the DataFrame. """
         log_returns = data.xs('log_return', level=1, axis=1)
@@ -87,8 +89,6 @@ class PortfolioSimulator:
         self.confidence_interval = portfolio_cumulative_returns.iloc[-1].quantile(q=[0.025, 0.975])
         
         return portfolio_cumulative_returns
-
-
 
     def plot_simulation(self):
         if self.simulated_return.empty:
