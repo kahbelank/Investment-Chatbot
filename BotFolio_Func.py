@@ -1,4 +1,5 @@
 # import libraries 
+import joblib
 from streamlit_chat import message
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -147,6 +148,7 @@ def display_portfolio_allocation(portfolio_type):
         st.plotly_chart(fig)
 
 
+@st.cache_data
 # Function to fetch historical data for a stock based on today's date
 def fetch_historical_data(ticker, start_date):
     try:
@@ -161,16 +163,21 @@ def fetch_historical_data(ticker, start_date):
         print(f"Error fetching data for {ticker}: {e}")
         return pd.DataFrame()
 
+@st.cache_data
 def display_forecasts_from_data(df, ticker, periods=30):
     if df.empty:
         print(f"Error: Empty DataFrame for {ticker}")
         return
 
+
+    # Load the saved model
+    model = joblib.load('Machine Learning\stock_prophet_model.pkl')
+
     df.rename(columns={'Date': 'ds', 'Close Shift': 'y'}, inplace=True)
     df.dropna(inplace=True)
     print(df.columns)
-    model = Prophet()
-    model.fit(df)
+    # model = Prophet()
+    # model.fit(df)
 
     last_date = df['ds'].iloc[-1]
     future_dates = pd.date_range(start=last_date + timedelta(days=1), periods=periods, freq='D')
