@@ -145,7 +145,7 @@ def botfolio():
         st.session_state.answers = [None] * len(RISK_QUESTIONS)
     
     # Validating user inputs
-    if user_age and investment_horizon and investment_amount and income:
+    if user_age and investment_horizon in investment_horizon_map and investment_amount and income in income_map:
         user_details = (
                 f"I am {user_age} years old\n"
                 f"with an annual income of {income}\n"
