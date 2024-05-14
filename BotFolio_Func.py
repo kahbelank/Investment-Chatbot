@@ -128,7 +128,7 @@ def display_portfolio_allocation(portfolio_type):
         # Display the pie chart using st.plotly_chart
         st.plotly_chart(fig)
 
-    if str(portfolio_type).lower().strip() == 'high risk portfolio':
+    if str(portfolio_type).lower().strip() == 'aggressive portfolio':
         
         # Set the labels for the pie chart
         #labels = ['TSLA', 'NVDA', '10yr Treasury Yield', 'ETH']
@@ -148,7 +148,7 @@ def display_portfolio_allocation(portfolio_type):
         st.plotly_chart(fig)
 
 
-@st.cache_data
+
 # Function to fetch historical data for a stock based on today's date
 def fetch_historical_data(ticker, start_date):
     try:
@@ -163,7 +163,7 @@ def fetch_historical_data(ticker, start_date):
         print(f"Error fetching data for {ticker}: {e}")
         return pd.DataFrame()
 
-@st.cache_data
+
 def display_forecasts_from_data(df, ticker, periods=30):
     if df.empty:
         print(f"Error: Empty DataFrame for {ticker}")
