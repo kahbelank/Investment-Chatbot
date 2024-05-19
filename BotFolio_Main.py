@@ -1,4 +1,3 @@
-# Import Libraries
 from tkinter import Image
 import streamlit as st
 from streamlit_chat import message
@@ -11,8 +10,18 @@ import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 
-from BotFolio_Func import user_age_verification, determine_weights, allocate_portfolio, display_portfolio_allocation, process_multiple_tickers
+from BotFolio_Func import user_age_verification, determine_weights, allocate_portfolio, process_multiple_tickers
 from risk_tolerance_data import RISK_QUESTIONS, OPTIONS, SCORES
+
+
+# Define the list of stocks globally
+stocks = ["AAPL", "ABBV", "ADBE", "AMZN", "AVGO", "BRK-B", "CRM", "COST", "CVX", "HD", 
+          "JNJ", "JPM", "LLY", "MA", "META", "MRK", "MSFT", "NVDA", "PG", "TSLA", "UNH", "V", "XOM"]
+bonds = ["^TNX", "^TYX"]
+reits = ["WELL", "O", "CCI"]
+
+# Define global variable for the optimal portfolio
+optimal_portfolio = None
 
 st.markdown("## BotFolio: Your Personalized Investment Portfolio")
 
@@ -145,52 +154,166 @@ def calculate_composite_risk_profile(risk_capacity, risk_tolerance_score):
 def map_composite_risk_profile_to_target_risk(composite_risk_profile, min_risk_level=0.05, max_risk_level=0.20):
     return min_risk_level + (max_risk_level - min_risk_level) * composite_risk_profile
 
-def categorize_portfolio(target_risk_level):
-    if target_risk_level <= 0.16:
-        return "Conservative"
-    elif target_risk_level > 0.16 and target_risk_level <= 0.18:
-        return "Balanced"
+def portfolio_optimization(user_age, investment_horizon, investment_amount, income, risk_tolerance_score, target_risk):
+    global optimal_portfolio  # Declare as global to modify the global variable
+
+    assets = stocks + bonds + reits
+
+
+    end_date = datetime.today().strftime('%Y-%m-%d')
+    start_date = (datetime.today() - timedelta(days=2*365)).strftime('%Y-%m-%d')
+
+    data = {}
+    failed_assets = []
+    for asset in assets:
+        try:
+            data[asset] = si.get_data(asset, start_date=start_date, end_date=end_date)['close']
+        except Exception as e:
+            failed_assets.append(asset)
+
+    price_df = pd.DataFrame(data)
+    price_df = price_df.ffill().dropna(axis=1)
+    valid_assets = price_df.columns.tolist()
+
+    if len(valid_assets) == 0:
+        st.write("No valid assets fetched. Please check your asset list and data fetching process.")
+        return
+    
+    def calculate_efficient_frontier(mean_returns, cov_matrix, risk_free_rate, num_portfolios=50):
+        target_risks = np.linspace(0.05, 0.25, num_portfolios)
+        portfolios = []
+
+        for target_risk in target_risks:
+            weights = get_optimal_weights(mean_returns, cov_matrix, risk_free_rate, target_risk)
+            returns, std = portfolio_annualized_performance(weights, mean_returns, cov_matrix)
+            portfolios.append((std, returns, weights))
+
+        return portfolios
+
+    def portfolio_annualized_performance(weights, mean_returns, cov_matrix):
+        returns = np.sum(mean_returns * weights) * 252
+        std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)) * 252)
+        return returns, std
+
+    def minimize_volatility(weights, cov_matrix):
+        return np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(252)
+
+    def objective_function(weights, mean_returns, cov_matrix, risk_free_rate, target_risk):
+        portfolio_return = np.sum(mean_returns * weights) * 252
+        portfolio_volatility = minimize_volatility(weights, cov_matrix)
+        sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_volatility
+        penalty = abs(portfolio_volatility - target_risk)
+        return -sharpe_ratio + penalty
+
+    def get_optimal_weights(mean_returns, cov_matrix, risk_free_rate, target_risk):
+        num_assets = len(mean_returns)
+        args = (mean_returns, cov_matrix, risk_free_rate, target_risk)
+        constraints = (
+            {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
+            {'type': 'ineq', 'fun': lambda x: target_risk - minimize_volatility(x, cov_matrix)}
+        )
+        bounds = []
+        for asset in assets:
+            if asset in reits:
+                bounds.append((0.01, 0.20))  # Ensure at least 1% allocation to REITs
+            else:
+                bounds.append((0, 0.20))
+        bounds = tuple(bounds)
+
+        result = minimize(objective_function, num_assets * [1./num_assets], args=args,
+                        method='SLSQP', bounds=bounds, constraints=constraints)
+        return result.x
+
+    returns_df = price_df.pct_change().dropna()
+    mean_returns = returns_df.mean()
+    cov_matrix = returns_df.cov()
+
+    risk_free_rate = si.get_data("^TNX")['close'].iloc[-1] / 100
+
+    efficient_frontier = calculate_efficient_frontier(mean_returns, cov_matrix, risk_free_rate)
+
+    selected_portfolio = min(efficient_frontier, key=lambda x: abs(x[0] - target_risk))
+    selected_weights = selected_portfolio[2]
+
+    # Determine the category based on the selected portfolio's volatility
+    min_volatility = min(p[0] for p in efficient_frontier)
+    max_volatility = max(p[0] for p in efficient_frontier)
+    volatility_range = max_volatility - min_volatility
+
+    # Define dynamic thresholds
+    conservative_threshold = min_volatility + volatility_range / 3
+    moderate_threshold = min_volatility + 2 * volatility_range / 3
+
+    if selected_portfolio[0] <= conservative_threshold:
+        portfolio_type = "Conservative"
+    elif selected_portfolio[0] <= moderate_threshold:
+        portfolio_type = "Balanced"
     else:
-        return "Aggressive"
+        portfolio_type = "Aggressive"
 
-def calculate_efficient_frontier(mean_returns, cov_matrix, risk_free_rate, num_portfolios=50):
-    target_risks = np.linspace(0.14, 0.22, num_portfolios)
-    portfolios = []
+    message(f"Based on the efficient frontier, your portfolio type is: {portfolio_type}", seed=21, key=26)
 
-    for target_risk in target_risks:
-        weights = get_optimal_weights(mean_returns, cov_matrix, risk_free_rate, target_risk)
-        returns, std = portfolio_annualized_performance(weights, mean_returns, cov_matrix)
-        portfolios.append((std, returns, weights))
+    non_zero_weights = selected_weights[selected_weights > 0]
+    non_zero_assets = np.array(valid_assets)[selected_weights > 0]
 
-    return portfolios
+    normalized_weights = non_zero_weights / np.sum(non_zero_weights)
+    rounded_weights = np.round(normalized_weights, 2)
+    diff = 1.0 - np.sum(rounded_weights)
+    rounded_weights[np.argmax(rounded_weights)] += diff
 
-def portfolio_annualized_performance(weights, mean_returns, cov_matrix):
-    returns = np.sum(mean_returns * weights) * 252
-    std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)) * 252)
-    return returns, std
+    # Calculate weights as percentages
+    weights_percent = rounded_weights * 100
 
-def minimize_volatility(weights, cov_matrix):
-    return np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(252)
+    # Filter out assets with 0% weights
+    non_zero_weights_percent = weights_percent[weights_percent > 0]
+    non_zero_assets_percent = non_zero_assets[weights_percent > 0]
 
-def objective_function(weights, mean_returns, cov_matrix, risk_free_rate, target_risk):
-    portfolio_return = np.sum(mean_returns * weights) * 252
-    portfolio_volatility = minimize_volatility(weights, cov_matrix)
-    sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_volatility
-    penalty = abs(portfolio_volatility - target_risk)
-    return -sharpe_ratio + penalty
+    # Create a DataFrame for the filtered and normalized portfolio
+    optimal_portfolio = pd.DataFrame({'Asset': non_zero_assets_percent, 'Weight (%)': non_zero_weights_percent})
 
-def get_optimal_weights(mean_returns, cov_matrix, risk_free_rate, target_risk):
-    num_assets = len(mean_returns)
-    args = (mean_returns, cov_matrix, risk_free_rate, target_risk)
-    constraints = (
-        {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
-        {'type': 'ineq', 'fun': lambda x: target_risk - minimize_volatility(x, cov_matrix)}
-    )
-    bounds = tuple((0.01, 0.20) for asset in range(num_assets))
+    st.write("Optimal Portfolio Allocation:")
+    st.table(optimal_portfolio)
 
-    result = minimize(objective_function, num_assets * [1./num_assets], args=args,
-                      method='SLSQP', bounds=bounds, constraints=constraints)
-    return result.x
+
+    optimal_return, optimal_volatility = portfolio_annualized_performance(rounded_weights, mean_returns.loc[non_zero_assets], cov_matrix.loc[non_zero_assets, non_zero_assets])
+    sharpe_ratio = (optimal_return - risk_free_rate) / optimal_volatility
+
+    portfolio_stocks = [(asset, weight) for asset, weight in zip(non_zero_assets, rounded_weights) if asset in stocks]
+    portfolio_bonds = [(asset, weight) for asset, weight in zip(non_zero_assets, rounded_weights) if asset in bonds]
+    portfolio_reits = [(asset, weight) for asset, weight in zip(non_zero_assets, rounded_weights) if asset in reits]
+
+    user_portfolio = {
+        "Stocks": portfolio_stocks,
+        "Bonds": portfolio_bonds,
+        "REITs": portfolio_reits
+    }
+
+    total_stocks = sum(weight for asset, weight in user_portfolio["Stocks"])
+    total_bonds = sum(weight for asset, weight in user_portfolio["Bonds"])
+    total_reits = sum(weight for asset, weight in user_portfolio["REITs"])
+
+    amount_stocks = total_stocks * float(investment_amount)
+    amount_bonds = total_bonds * float(investment_amount)
+    amount_reits = total_reits * float(investment_amount)
+
+    investment_allocation = pd.DataFrame({
+        'Asset Class': ['Stocks', 'Bonds', 'REITs'],
+        'Allocation ($)': [amount_stocks, amount_bonds, amount_reits]
+    })
+
+    st.write("Investment Amount Allocation:")
+    st.table(investment_allocation)
+
+    # plt.figure(figsize=(10, 6))
+    # plt.plot([p[0] for p in efficient_frontier], [p[1] for p in efficient_frontier], 'k-', label='Efficient Frontier')
+    # plt.plot(selected_portfolio[0], selected_portfolio[1], 'ms', markersize=10, label='Selected Portfolio')
+
+    # plt.title('Efficient Frontier with Selected Portfolio')
+    # plt.xlabel('Volatility (Standard Deviation)')
+    # plt.ylabel('Expected Return')
+    # plt.legend()
+    # plt.grid(True)
+    # st.pyplot(plt)
 
 def botfolio():
     user_age = st.text_input('Age', placeholder='Enter your age').strip()
@@ -239,7 +362,7 @@ def botfolio():
                 risk_capacity_level = "Moderate"
             else:
                 risk_capacity_level = "Low"
-            message(f"Your risk capacity is: {risk_capacity}", seed=21, key=18)
+            message(f"Your risk capacity is: {risk_capacity} and {risk_capacity_level}", seed=21, key=18)
 
             current_question = st.session_state.current_question
 
@@ -312,128 +435,18 @@ def botfolio():
                         target_risk_percentage = target_risk * 100
                         st.write(f"Your target risk level is: {target_risk:.2f} ({target_risk_percentage:.1f}%)")
 
-                        portfolio_type = categorize_portfolio(target_risk)
-                        st.write(f"Based on your target risk level, your portfolio type is: {portfolio_type}")
+                        portfolio_optimization(int(user_age), investment_horizon, float(investment_amount), income, risk_score, target_risk)
 
-                        portfolio_optimization(int(user_age), investment_horizon, float(investment_amount), income, risk_score)
+                        start_date = datetime.today() - timedelta(days=3650)
+
+                        message("Would you like me to display forecasts of each asset in your portfolio?", seed=21, key=20)
+                        user_input = st.text_input(' ', placeholder='Display forecasts? (enter yes/no)').strip().lower()
+                        optimal_stocks = optimal_portfolio[optimal_portfolio['Asset'].isin(stocks)]['Asset'].tolist()
+                        if user_input == 'yes':
+                            process_multiple_tickers(optimal_stocks, start_date, user_input)
                     else:
                         message("Please answer all questions before submitting.", seed=21, key=25)
 
-def portfolio_optimization(user_age, investment_horizon, investment_amount, income, risk_tolerance_score):
-    stocks = ["AAPL", "ABBV", "ADBE", "AMZN", "AVGO", "BRK-B", "CRM", "COST", "CVX", "HD", 
-              "JNJ", "JPM", "LLY", "MA", "META", "MRK", "MSFT", "NVDA", "PG", "TSLA", "UNH", "V", "XOM"]
-    bonds = ["^TNX", "^TYX"]
-    reits = ["WELL", "O", "CCI"]
 
-    assets = stocks + bonds + reits
-
-    end_date = datetime.today().strftime('%Y-%m-%d')
-    start_date = (datetime.today() - timedelta(days=10*365)).strftime('%Y-%m-%d')
-
-    data = {}
-    failed_assets = []
-    for asset in assets:
-        try:
-            data[asset] = si.get_data(asset, start_date=start_date, end_date=end_date)['close']
-        except Exception as e:
-            failed_assets.append(asset)
-
-    price_df = pd.DataFrame(data)
-    price_df = price_df.ffill().dropna(axis=1)
-    valid_assets = price_df.columns.tolist()
-
-    if len(valid_assets) == 0:
-        st.write("No valid assets fetched. Please check your asset list and data fetching process.")
-        return
-
-    returns_df = price_df.pct_change().dropna()
-    mean_returns = returns_df.mean()
-    cov_matrix = returns_df.cov()
-
-    risk_capacity = calculate_risk_capacity(int(user_age), investment_horizon, float(investment_amount), income)
-    composite_risk_profile = calculate_composite_risk_profile(risk_capacity, risk_tolerance_score)
-    target_risk = map_composite_risk_profile_to_target_risk(composite_risk_profile)
-
-    risk_free_rate = si.get_data("^TNX")['close'].iloc[-1] / 100
-
-    efficient_frontier = calculate_efficient_frontier(mean_returns, cov_matrix, risk_free_rate)
-
-    selected_portfolio = min(efficient_frontier, key=lambda x: abs(x[0] - target_risk))
-    selected_weights = selected_portfolio[2]
-
-    non_zero_weights = selected_weights[selected_weights > 0]
-    non_zero_assets = np.array(valid_assets)[selected_weights > 0]
-
-    normalized_weights = non_zero_weights / np.sum(non_zero_weights)
-    rounded_weights = np.round(normalized_weights, 2)
-    diff = 1.0 - np.sum(rounded_weights)
-    rounded_weights[np.argmax(rounded_weights)] += diff
-
-    # Calculate weights as percentages
-    weights_percent = rounded_weights * 100
-
-    # Create a DataFrame for the filtered and normalized portfolio
-    optimal_portfolio = pd.DataFrame({'Asset': non_zero_assets, 'Weight (%)': weights_percent})
-
-    st.write("Optimal Portfolio Allocation:")
-    st.table(optimal_portfolio)
-
-    optimal_return, optimal_volatility = portfolio_annualized_performance(rounded_weights, mean_returns.loc[non_zero_assets], cov_matrix.loc[non_zero_assets, non_zero_assets])
-    sharpe_ratio = (optimal_return - risk_free_rate) / optimal_volatility
-
-    portfolio_stocks = [(asset, weight) for asset, weight in zip(non_zero_assets, rounded_weights) if asset in stocks]
-    portfolio_bonds = [(asset, weight) for asset, weight in zip(non_zero_assets, rounded_weights) if asset in bonds]
-    portfolio_reits = [(asset, weight) for asset, weight in zip(non_zero_assets, rounded_weights) if asset in reits]
-
-    user_portfolio = {
-        "Stocks": portfolio_stocks,
-        "Bonds": portfolio_bonds,
-        "REITs": portfolio_reits
-    }
-
-    total_stocks = sum(weight for asset, weight in user_portfolio["Stocks"])
-    total_bonds = sum(weight for asset, weight in user_portfolio["Bonds"])
-    total_reits = sum(weight for asset, weight in user_portfolio["REITs"])
-
-    amount_stocks = total_stocks * float(investment_amount)
-    amount_bonds = total_bonds * float(investment_amount)
-    amount_reits = total_reits * float(investment_amount)
-
-    investment_allocation = pd.DataFrame({
-        'Asset Class': ['Stocks', 'Bonds', 'REITs'],
-        'Allocation ($)': [amount_stocks, amount_bonds, amount_reits]
-    })
-
-    st.write("Investment Amount Allocation:")
-    st.table(investment_allocation)
-
-    conservative_portfolios = [p for p in efficient_frontier if p[0] <= 0.16]
-    moderate_portfolios = [p for p in efficient_frontier if 0.16 < p[0] <= 0.18]
-    aggressive_portfolios = [p for p in efficient_frontier if p[0] > 0.18]
-
-    if not conservative_portfolios:
-        conservative_portfolios.append(efficient_frontier[0])
-    if not moderate_portfolios:
-        moderate_portfolios.append(efficient_frontier[len(efficient_frontier)//2])
-    if not aggressive_portfolios:
-        aggressive_portfolios.append(efficient_frontier[-1])
-
-    conservative_start = conservative_portfolios[0]
-    moderate_start = moderate_portfolios[0]
-    aggressive_start = aggressive_portfolios[0]
-
-    plt.figure(figsize=(10, 6))
-    plt.plot([p[0] for p in efficient_frontier], [p[1] for p in efficient_frontier], 'k-', label='Efficient Frontier')
-    plt.plot([p[0] for p in conservative_portfolios], [p[1] for p in conservative_portfolios], 'bo-', label='Conservative')
-    plt.plot([p[0] for p in moderate_portfolios], [p[1] for p in moderate_portfolios], 'go-', label='Moderate')
-    plt.plot([p[0] for p in aggressive_portfolios], [p[1] for p in aggressive_portfolios], 'ro-', label='Aggressive')
-    plt.plot(selected_portfolio[0], selected_portfolio[1], 'ms', markersize=10, label='Selected Portfolio')
-
-    plt.title('Efficient Frontier with Selected Portfolio')
-    plt.xlabel('Volatility (Standard Deviation)')
-    plt.ylabel('Expected Return')
-    plt.legend()
-    plt.grid(True)
-    st.pyplot(plt)
 
 botfolio()
