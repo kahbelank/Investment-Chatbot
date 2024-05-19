@@ -20,6 +20,7 @@ stocks = ["AAPL", "ABBV", "ADBE", "AMZN", "AVGO", "BRK-B", "CRM", "COST", "CVX",
 bonds = ["^TNX", "^TYX"]
 reits = ["WELL", "O", "CCI"]
 
+
 # Define global variable for the optimal portfolio
 optimal_portfolio = None
 
@@ -315,17 +316,38 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     # plt.grid(True)
     # st.pyplot(plt)
 
+# Initialize state variables at the beginning
+if "current_question" not in st.session_state:
+    st.session_state.current_question = 0
+    st.session_state.answers = [None] * len(RISK_QUESTIONS)
+    st.session_state.risk_score = None
+    st.session_state.composite_risk_profile = None
+    st.session_state.optimal_portfolio = None
+    st.session_state.user_age = ""
+    st.session_state.investment_horizon = "Short-Term"
+    st.session_state.investment_amount = ""
+    st.session_state.income = "Less than $30,000"
+    st.session_state.show_forecast_prompt = False  # New state variable for forecast prompt
+    st.session_state.show_forecasts = False   # New state variable for forecast prompt
+
+
+def reset_calculations():
+    st.session_state.risk_score = None
+    st.session_state.composite_risk_profile = None
+    st.session_state.optimal_portfolio = None
+    st.session_state.show_forecast_prompt = False  # Reset forecast prompt
+    st.session_state.show_forecasts = False  
+
+# Main function
 def botfolio():
-    user_age = st.text_input('Age', placeholder='Enter your age').strip()
+    # User inputs
+    user_age = st.text_input('Age', placeholder='Enter your age', value=st.session_state.user_age).strip()
     investment_horizon = st.selectbox(
         "Select your investment horizon",
-        options=[
-            "Short-Term",
-            "Medium-Term",
-            "Long-Term",
-        ]
+        options=["Short-Term", "Medium-Term", "Long-Term"],
+        index=["Short-Term", "Medium-Term", "Long-Term"].index(st.session_state.investment_horizon)
     )
-    investment_amount = st.text_input('Investment Amount', placeholder='Enter your investment amount in USD').strip()
+    investment_amount = st.text_input('Investment Amount', placeholder='Enter your investment amount in USD', value=st.session_state.investment_amount).strip()
     income = st.selectbox(
         "Select your annual income range:",
         options=[
@@ -335,21 +357,38 @@ def botfolio():
             "$100,000 - $149,999",
             "$150,000 - $199,999",
             "More than $200,000"
-        ]
+        ],
+        index=[
+            "Less than $30,000",
+            "$30,000 - $49,999",
+            "$50,000 - $99,999",
+            "$100,000 - $149,999",
+            "$150,000 - $199,999",
+            "More than $200,000"
+        ].index(st.session_state.income)
     )
 
-    if "current_question" not in st.session_state:
-        st.session_state.current_question = 0
-        st.session_state.answers = [None] * len(RISK_QUESTIONS)
-    
+    # Detect changes in user inputs and reset calculations if they change
+    if (
+        user_age != st.session_state.user_age or
+        investment_horizon != st.session_state.investment_horizon or
+        investment_amount != st.session_state.investment_amount or
+        income != st.session_state.income
+    ):
+        st.session_state.user_age = user_age
+        st.session_state.investment_horizon = investment_horizon
+        st.session_state.investment_amount = investment_amount
+        st.session_state.income = income
+        reset_calculations()
+
     if user_age and investment_horizon and investment_amount and income:
         user_details = (
-                f"I am {user_age} years old\n"
-                f"with an annual income of {income}\n"
-                f"and I am willing to invest ${investment_amount}\n"
-                f"for an investment horizon of {investment_horizon}"
+            f"I am {user_age} years old\n"
+            f"with an annual income of {income}\n"
+            f"and I am willing to invest ${investment_amount}\n"
+            f"for an investment horizon of {investment_horizon}"
         )
-        message(user_details, is_user=True, seed=1, key=12)
+        message(user_details, is_user=True, seed=90, key=12)
 
         age_verification_message = user_age_verification(user_age)
         message(age_verification_message, seed=21, key=17)
@@ -414,6 +453,9 @@ def botfolio():
                             index = OPTIONS[i].index(answer)
                             risk_score += SCORES[i][index]
 
+                        st.session_state.risk_score = risk_score
+
+                        # Determine the risk level
                         if risk_score >= 33:
                             risk_level = "High tolerance for risk"
                         elif risk_score >= 29:
@@ -426,27 +468,190 @@ def botfolio():
                             risk_level = "Low tolerance for risk"
 
                         message(f"Your risk tolerance score is {risk_score}, indicating a {risk_level}.", seed=21, key=24)
+
+                        # Display risk score chart
                         fig = display_risk_score_chart(risk_score)
                         st.plotly_chart(fig)
 
+                        # Calculate and store composite risk profile
                         composite_risk_profile = calculate_composite_risk_profile(risk_capacity, risk_score)
+                        st.session_state.composite_risk_profile = composite_risk_profile
+
                         message(f"Your overall risk profile score is: {composite_risk_profile:.2f}", seed=21, key=25)
+
+                        # Calculate target risk
                         target_risk = map_composite_risk_profile_to_target_risk(composite_risk_profile)
                         target_risk_percentage = target_risk * 100
                         st.write(f"Your target risk level is: {target_risk:.2f} ({target_risk_percentage:.1f}%)")
 
+                        # Optimize portfolio and store the result
                         portfolio_optimization(int(user_age), investment_horizon, float(investment_amount), income, risk_score, target_risk)
+                        st.session_state.optimal_portfolio = optimal_portfolio
 
-                        start_date = datetime.today() - timedelta(days=3650)
-
-                        message("Would you like me to display forecasts of each asset in your portfolio?", seed=21, key=20)
-                        user_input = st.text_input(' ', placeholder='Display forecasts? (enter yes/no)').strip().lower()
-                        optimal_stocks = optimal_portfolio[optimal_portfolio['Asset'].isin(stocks)]['Asset'].tolist()
-                        if user_input == 'yes':
-                            process_multiple_tickers(optimal_stocks, start_date, user_input)
+                        # Show forecast prompt after portfolio optimization
+                        st.session_state.show_forecast_prompt = True
                     else:
                         message("Please answer all questions before submitting.", seed=21, key=25)
 
+            # Show forecast prompt if ready
+            if st.session_state.show_forecast_prompt:
+                message("Would you like me to display forecasts of each asset in your portfolio?", seed=21, key=20)
+                user_input = st.text_input(' ', placeholder='Display forecasts? (enter yes/no)').strip().lower()
 
+                if user_input == 'yes' and st.session_state.optimal_portfolio is not None:
+                    optimal_stocks = st.session_state.optimal_portfolio[st.session_state.optimal_portfolio['Asset'].isin(stocks)]['Asset'].tolist()
+                    start_date = datetime.today() - timedelta(days=3650)
+                    process_multiple_tickers(optimal_stocks, start_date, user_input)
 
 botfolio()
+# def botfolio():
+#     user_age = st.text_input('Age', placeholder='Enter your age').strip()
+#     investment_horizon = st.selectbox(
+#         "Select your investment horizon",
+#         options=[
+#             "Short-Term",
+#             "Medium-Term",
+#             "Long-Term",
+#         ]
+#     )
+#     investment_amount = st.text_input('Investment Amount', placeholder='Enter your investment amount in USD').strip()
+#     income = st.selectbox(
+#         "Select your annual income range:",
+#         options=[
+#             "Less than $30,000",
+#             "$30,000 - $49,999",
+#             "$50,000 - $99,999",
+#             "$100,000 - $149,999",
+#             "$150,000 - $199,999",
+#             "More than $200,000"
+#         ]
+#     )
+
+#     if "current_question" not in st.session_state:
+#         st.session_state.current_question = 0
+#         st.session_state.answers = [None] * len(RISK_QUESTIONS)
+    
+#     if user_age and investment_horizon and investment_amount and income:
+#         user_details = (
+#                 f"I am {user_age} years old\n"
+#                 f"with an annual income of {income}\n"
+#                 f"and I am willing to invest ${investment_amount}\n"
+#                 f"for an investment horizon of {investment_horizon}"
+#         )
+#         message(user_details, is_user=True, seed=1, key=12)
+
+#         age_verification_message = user_age_verification(user_age)
+#         message(age_verification_message, seed=21, key=17)
+
+#         if "Enjoy the use" in age_verification_message:
+#             risk_capacity = calculate_risk_capacity(int(user_age), investment_horizon, float(investment_amount), income)
+#             if risk_capacity >= 0.75:
+#                 risk_capacity_level = "High"
+#             elif risk_capacity >= 0.5:
+#                 risk_capacity_level = "Moderate"
+#             else:
+#                 risk_capacity_level = "Low"
+#             message(f"Your risk capacity is: {risk_capacity} and {risk_capacity_level}", seed=21, key=18)
+
+#             current_question = st.session_state.current_question
+
+#             st.write(RISK_QUESTIONS[current_question])
+
+#             if st.session_state.answers[current_question] is not None:
+#                 try:
+#                     answer = st.radio(
+#                         "Select an option:",
+#                         OPTIONS[current_question],
+#                         index=OPTIONS[current_question].index(st.session_state.answers[current_question]),
+#                         key=f"q{current_question}"
+#                     )
+#                 except ValueError:
+#                     answer = st.radio(
+#                         "Select an option:",
+#                         OPTIONS[current_question],
+#                         key=f"q{current_question}"
+#                     )
+#             else:
+#                 answer = st.radio(
+#                     "Select an option:",
+#                     OPTIONS[current_question],
+#                     key=f"q{current_question}"
+#                 )
+
+#             if answer:
+#                 st.session_state.answers[current_question] = answer
+
+#             col1, col2, col3 = st.columns([1, 1, 2])
+
+#             with col1:
+#                 if current_question > 0:
+#                     if st.button("Previous"):
+#                         st.session_state.current_question -= 1
+#                         st.experimental_rerun()
+
+#             with col2:
+#                 if current_question < len(RISK_QUESTIONS) - 1:
+#                     if st.button("Next"):
+#                         st.session_state.current_question += 1
+#                         st.experimental_rerun()
+        
+#             if "risk_score" not in st.session_state:
+#                 st.session_state.risk_score = None
+#             if "composite_risk_profile" not in st.session_state:
+#                 st.session_state.composite_risk_profile = None
+#             if "optimal_portfolio" not in st.session_state:
+#                 st.session_state.optimal_portfolio = None
+
+#             if current_question == len(RISK_QUESTIONS) - 1:
+#                 if st.button("Submit"):
+#                     if None not in st.session_state.answers:
+#                         risk_score = 0
+#                         for i, answer in enumerate(st.session_state.answers):
+#                             index = OPTIONS[i].index(answer)
+#                             risk_score += SCORES[i][index]
+
+#                         st.session_state.risk_score = risk_score
+
+#                         if risk_score >= 33:
+#                             risk_level = "High tolerance for risk"
+#                         elif risk_score >= 29:
+#                             risk_level = "Above-average tolerance for risk"
+#                         elif risk_score >= 23:
+#                             risk_level = "Average/moderate tolerance for risk"
+#                         elif risk_score >= 19:
+#                             risk_level = "Below-average tolerance for risk"
+#                         else:
+#                             risk_level = "Low tolerance for risk"
+
+#                         message(f"Your risk tolerance score is {risk_score}, indicating a {risk_level}.", seed=21, key=24)
+#                         # Display risk score chart
+#                         fig = display_risk_score_chart(risk_score)
+#                         st.plotly_chart(fig)
+
+#                         # Calculate and store composite risk profile
+#                         composite_risk_profile = calculate_composite_risk_profile(risk_capacity, risk_score)
+#                         st.session_state.composite_risk_profile = composite_risk_profile
+
+#                         message(f"Your overall risk profile score is: {composite_risk_profile:.2f}", seed=21, key=25)
+
+#                         # Calculate target risk
+#                         target_risk = map_composite_risk_profile_to_target_risk(composite_risk_profile)
+#                         target_risk_percentage = target_risk * 100
+#                         st.write(f"Your target risk level is: {target_risk:.2f} ({target_risk_percentage:.1f}%)")
+
+#                         # Optimize portfolio and store the result
+#                         portfolio_optimization(int(user_age), investment_horizon, float(investment_amount), income, risk_score, target_risk)
+#                         st.session_state.optimal_portfolio = optimal_portfolio
+
+#                         start_date = datetime.today() - timedelta(days=3650)
+#                         message("Would you like me to display forecasts of each asset in your portfolio?", seed=21, key=20)
+#                         user_input = st.text_input(' ', placeholder='Display forecasts? (enter yes/no)').strip().lower()
+                        
+#                         if user_input == 'yes' and st.session_state.optimal_portfolio is not None:
+#                             optimal_stocks = st.session_state.optimal_portfolio[st.session_state.optimal_portfolio['Asset'].isin(stocks)]['Asset'].tolist()
+#                             process_multiple_tickers(optimal_stocks, start_date, user_input)
+#                     else:
+#                         message("Please answer all questions before submitting.", seed=21, key=25)
+
+
+# botfolio()
