@@ -74,6 +74,8 @@ def allocate_portfolio(user_investment_amount):
     st.table(pd.DataFrame({'Asset': assets, 'Value': values}))
 
 
+##Forecasting Functions##
+
 # Function to fetch historical data for a stock based on today's date
 def fetch_historical_data(ticker, start_date):
     try:
