@@ -495,7 +495,7 @@ def botfolio():
 
             # Show forecast prompt if ready
             if st.session_state.show_forecast_prompt:
-                st.write(st.session_state.optimal_portfolio)
+                # st.write(st.session_state.optimal_portfolio)
                 message("Would you like me to display forecasts of each asset in your portfolio?", seed=21, key=20)
                 user_input = st.text_input(' ', placeholder='Display forecasts? (enter yes/no)').strip().lower()
 
