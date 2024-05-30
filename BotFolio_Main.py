@@ -10,7 +10,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 
-from BotFolio_Func import user_age_verification, determine_weights, allocate_portfolio, process_multiple_tickers
+from BotFolio_Func import user_age_verification, process_multiple_tickers
 from risk_tolerance_data import RISK_QUESTIONS, OPTIONS, SCORES
 
 

@@ -31,47 +31,6 @@ def user_age_verification(age):
         return "I'm sorry, but it looks like you are too old to use this application. Please enter an age less than 110!"
     else:
         return "This application requires you to be at least 18 years old!"
-    
-def determine_weights(age): 
-
-    age = int(age) 
-
-    portfolio_weights.clear()
-
-    user_stock_weights = 110 - age
-    user_bonds_weights = (100 - user_stock_weights) - 5
-    user_reits_weights = 5
-
-    user_stock_weights = user_stock_weights / 100
-    user_bonds_weights = user_bonds_weights / 100
-    user_reits_weights = user_reits_weights / 100
-
-    portfolio_weights.append(user_stock_weights)
-    portfolio_weights.append(user_bonds_weights)
-    portfolio_weights.append(user_reits_weights)
-
-def allocate_portfolio(user_investment_amount): 
-    '''
-    This function allocates the user's buying power towards each asset class based on the weights calculated above
-    
-    Parameters: 
-
-    user_investment_amount --> pass in the user_investment_amount from streamlit to calculate how much money the user will invest in each asset class
-    '''
-    investment_allocation.clear()
-
-    for weight in portfolio_weights: 
-        investments_per_asset = float(user_investment_amount) * float(weight)
-        investments_per_asset = round(investments_per_asset, 2)
-        investments_per_asset = '${:,.2f}'.format(investments_per_asset)
-        investment_allocation.append(str(investments_per_asset))
-    
-    assets = ['Stocks', 'Bonds', 'REITs']
-    values = investment_allocation
-    #df = pd.DataFrame({'Asset': assets, 'Value': values})
-    message(f'I recommend allocating your buying power towards each asset class in the following format: ', seed=21, key=26)
-    
-    st.table(pd.DataFrame({'Asset': assets, 'Value': values}))
 
 
 ##Forecasting Functions##
