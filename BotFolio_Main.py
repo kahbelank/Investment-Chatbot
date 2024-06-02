@@ -105,6 +105,7 @@ def calculate_age_score(age):
     max_age = 110
     normalized_age = (max_age - age) / (max_age - min_age)
     return max(0, min(normalized_age, 1))
+    
 
 def calculate_investment_horizon_score(horizon):
     investment_horizon_map = {
@@ -293,6 +294,19 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     total_bonds = sum(weight for asset, weight in user_portfolio["Bonds"])
     total_reits = sum(weight for asset, weight in user_portfolio["REITs"])
 
+    # Define the data for the donut plot
+    labels = ['Stocks', 'Bonds', 'REITs']
+    values = [total_stocks * float(investment_amount), total_bonds * float(investment_amount), total_reits * float(investment_amount)]
+
+    # Create the donut plot using Plotly
+    fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.3)])
+
+    # Update the layout for better appearance
+    fig.update_layout(title_text='Portfolio Allocation', annotations=[dict(text='', x=0.5, y=0.5, font_size=20, showarrow=False)])
+
+    # Display the plot in Streamlit
+    st.plotly_chart(fig)
+
     amount_stocks = total_stocks * float(investment_amount)
     amount_bonds = total_bonds * float(investment_amount)
     amount_reits = total_reits * float(investment_amount)
@@ -401,7 +415,7 @@ def botfolio():
                 risk_capacity_level = "Moderate"
             else:
                 risk_capacity_level = "Low"
-            message(f"Your risk capacity is: {risk_capacity} and {risk_capacity_level}", seed=21, key=18)
+            message(f"Your risk capacity is: {round(risk_capacity,2)} and {risk_capacity_level}", seed=21, key=18)
 
             current_question = st.session_state.current_question
 
