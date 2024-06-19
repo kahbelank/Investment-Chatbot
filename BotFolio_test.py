@@ -1,4 +1,5 @@
 from tkinter import Image
+import requests
 import streamlit as st
 from streamlit_chat import message
 import pandas as pd
@@ -14,6 +15,10 @@ from BotFolio_Func import monte_carlo_simulation, user_age_verification, process
 from risk_tolerance_data import RISK_QUESTIONS, OPTIONS, SCORES
 
 
+# Initialize session state for fetched data
+if 'fetched_data' not in st.session_state:
+    st.session_state.fetched_data = {}
+
 # Define the list of stocks globally
 stocks = ["AAPL", "ABBV", "ADBE", "AMZN", "AVGO", "BRK-B", "CRM", "COST", "CVX", "HD", 
           "JNJ", "JPM", "LLY", "MA", "META", "MRK", "MSFT", "NVDA", "PG", "TSLA", "UNH", "V", "XOM"]
@@ -24,7 +29,7 @@ reits = ["WELL", "O", "CCI"]
 # Define global variable for the optimal portfolio
 optimal_portfolio = None
 
-st.markdown("## BotFolio: Your Personalized Investment Portfolio")
+st.markdown("## OptiFi: Your Personalized Investment Portfolio")
 
 st.markdown(
     """
@@ -33,14 +38,20 @@ st.markdown(
         font-size: 18px;
         line-height: 1.5;
     }
-    .stMarkdown p {
+    .message-content {
         font-size: 18px;
         line-height: 1.5;
+        margin: 0;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+with open('chat.css') as f:
+    css = f.read()
+
+st.markdown(f'<style>{css}</style>', unsafe_allow_html=True)
 
 def display_forecast_and_historical_prices(df, historical_prices_df, asset_name):
     df.rename(columns={'ds': 'Date', 'yhat': 'Most Likely Case'}, inplace=True)
@@ -95,7 +106,7 @@ def display_risk_score_chart(risk_score):
 
     fig.update_layout(
         margin=dict(t=50, b=0, l=25, r=25),
-        height=300
+        height=200
     )
 
     return fig
@@ -253,7 +264,7 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     else:
         portfolio_type = "Aggressive"
 
-    message(f"Based on the efficient frontier, your portfolio type is: {portfolio_type}", seed=21, key=26)
+    message(f"Based on the efficient frontier, your portfolio type is: {portfolio_type}", is_user=False, avatar_style="avataaars",seed=avatar_url)
 
     non_zero_weights = selected_weights[selected_weights > 0]
     non_zero_assets = np.array(valid_assets)[selected_weights > 0]
@@ -319,16 +330,6 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     st.write("Investment Amount Allocation:")
     st.table(investment_allocation)
 
-    # plt.figure(figsize=(10, 6))
-    # plt.plot([p[0] for p in efficient_frontier], [p[1] for p in efficient_frontier], 'k-', label='Efficient Frontier')
-    # plt.plot(selected_portfolio[0], selected_portfolio[1], 'ms', markersize=10, label='Selected Portfolio')
-
-    # plt.title('Efficient Frontier with Selected Portfolio')
-    # plt.xlabel('Volatility (Standard Deviation)')
-    # plt.ylabel('Expected Return')
-    # plt.legend()
-    # plt.grid(True)
-    # st.pyplot(plt)
 
 # Initialize state variables at the beginning
 if "current_question" not in st.session_state:
@@ -343,6 +344,7 @@ if "current_question" not in st.session_state:
     st.session_state.income = "Less than $30,000"
     st.session_state.show_forecast_prompt = False  # New state variable for forecast prompt
     st.session_state.show_forecasts = False   # New state variable for forecast prompt
+    st.session_state.forecasts_processed = False
 
 
 def reset_calculations():
@@ -351,61 +353,64 @@ def reset_calculations():
     st.session_state.optimal_portfolio = None
     st.session_state.show_forecast_prompt = False  # Reset forecast prompt
     st.session_state.show_forecasts = False  
+    st.session_state.forecasts_processed = False
 
-# Main function
+
+
+avatar_user = "https://api.dicebear.com/9.x/thumbs/svg?seed=white&backgroundColor=69d2e7&backgroundType=gradientLinear"
+avatar_url ="https://api.dicebear.com/9.x/avataaars-neutral/svg?seed=James2&backgroundColor=ffd5dc&backgroundType=gradientLinear&eyes=happy&hairColor=2c1b18&skinColor=d08b5b,edb98a"
+
 def botfolio():
-    # User inputs
-    user_age = st.text_input('Age', placeholder='Enter your age', value=st.session_state.user_age).strip()
+# = st.sidebar.checkbox('Forecast')
+    
+    message("Welcome to OptiFi! Let's get started by collecting some information about you to determine your risk capacity.", is_user=False, avatar_style="avataaars",seed=avatar_url)
+    user_age = st.text_input('Age', placeholder='Enter your age').strip()
     investment_horizon = st.selectbox(
-        "Select your investment horizon",
-        options=["Short-Term", "Medium-Term", "Long-Term"],
-        index=["Short-Term", "Medium-Term", "Long-Term"].index(st.session_state.investment_horizon)
+    "Select your investment horizon",
+    options=[
+    "Short-Term",
+    "Medium-Term",
+    "Long-Term",
+    ]
     )
-    investment_amount = st.text_input('Investment Amount', placeholder='Enter your investment amount in USD', value=st.session_state.investment_amount).strip()
+    investment_amount = st.text_input('Investment Amount', placeholder='Enter your investment amount in USD').strip()
     income = st.selectbox(
-        "Select your annual income range:",
-        options=[
+    "Select your annual income range:",
+    options=[
             "Less than $30,000",
             "$30,000 - $49,999",
             "$50,000 - $99,999",
             "$100,000 - $149,999",
             "$150,000 - $199,999",
             "More than $200,000"
-        ],
-        index=[
-            "Less than $30,000",
-            "$30,000 - $49,999",
-            "$50,000 - $99,999",
-            "$100,000 - $149,999",
-            "$150,000 - $199,999",
-            "More than $200,000"
-        ].index(st.session_state.income)
+        ]
     )
 
-    # Detect changes in user inputs and reset calculations if they change
-    if (
-        user_age != st.session_state.user_age or
-        investment_horizon != st.session_state.investment_horizon or
-        investment_amount != st.session_state.investment_amount or
-        income != st.session_state.income
-    ):
-        st.session_state.user_age = user_age
-        st.session_state.investment_horizon = investment_horizon
-        st.session_state.investment_amount = investment_amount
-        st.session_state.income = income
-        reset_calculations()
+    # Reset session state if necessary
+    reset_calculations()
+
+    if "current_question" not in st.session_state:
+        st.session_state.current_question = 0
+        st.session_state.answers = [None] * len(RISK_QUESTIONS)
 
     if user_age and investment_horizon and investment_amount and income:
+        if income in [
+            "$30,000 - $49,999",
+            "$50,000 - $99,999",
+            "$100,000 - $149,999",
+            "$150,000 - $199,999"
+        ]:
+            income = "\\" + income
         user_details = (
-            f"I am {user_age} years old\n"
-            f"with an annual income of {income}\n"
-            f"and I am willing to invest ${investment_amount}\n"
-            f"for an investment horizon of {investment_horizon}"
+                f" I am {user_age} years old\n"
+                f" with an annual income of {income}\n"
+                f" \nand I am willing to invest USD${investment_amount}\n"
+                f" for an investment horizon of {investment_horizon}"
         )
-        message(user_details, is_user=True, seed=90, key=12)
+        message(user_details, is_user=True, avatar_style="thumbs",seed=avatar_user)
 
         age_verification_message = user_age_verification(user_age)
-        message(age_verification_message, seed=21, key=17)
+        message(age_verification_message, is_user=False, avatar_style="avataaars",seed=avatar_url)
 
         if "Enjoy the use" in age_verification_message:
             risk_capacity = calculate_risk_capacity(int(user_age), investment_horizon, float(investment_amount), income)
@@ -415,8 +420,8 @@ def botfolio():
                 risk_capacity_level = "Moderate"
             else:
                 risk_capacity_level = "Low"
-            message(f"Your risk capacity is: {round(risk_capacity,2)} and {risk_capacity_level}", seed=21, key=18)
-
+            #message(f"Your risk capacity is: {risk_capacity} and {risk_capacity_level}", seed=21, key=18)
+            message(f"Based on your inputs, I have determine that you have a {risk_capacity_level} risk capacity.\n\n Next, please complete the risk tolerance questionnaire below to allow me to determine your risk tolerance:", is_user=False, avatar_style="avataaars",seed=avatar_url)
             current_question = st.session_state.current_question
 
             st.write(RISK_QUESTIONS[current_question])
@@ -458,9 +463,16 @@ def botfolio():
                     if st.button("Next"):
                         st.session_state.current_question += 1
                         st.experimental_rerun()
+        
+            if "risk_score" not in st.session_state:
+                st.session_state.risk_score = None
+            if "composite_risk_profile" not in st.session_state:
+                st.session_state.composite_risk_profile = None
+            if "optimal_portfolio" not in st.session_state:
+                st.session_state.optimal_portfolio = None
 
             if current_question == len(RISK_QUESTIONS) - 1:
-                if st.button("Submit"):
+                if st.checkbox("Submit"):
                     if None not in st.session_state.answers:
                         risk_score = 0
                         for i, answer in enumerate(st.session_state.answers):
@@ -469,7 +481,6 @@ def botfolio():
 
                         st.session_state.risk_score = risk_score
 
-                        # Determine the risk level
                         if risk_score >= 33:
                             risk_level = "High tolerance for risk"
                         elif risk_score >= 29:
@@ -481,8 +492,7 @@ def botfolio():
                         else:
                             risk_level = "Low tolerance for risk"
 
-                        message(f"Your risk tolerance score is {risk_score}, indicating a {risk_level}.", seed=21, key=24)
-
+                        message(f"Your risk tolerance score is {risk_score}, indicating a {risk_level}.", is_user=False, avatar_style="avataaars",seed=avatar_url)
                         # Display risk score chart
                         fig = display_risk_score_chart(risk_score)
                         st.plotly_chart(fig)
@@ -491,220 +501,86 @@ def botfolio():
                         composite_risk_profile = calculate_composite_risk_profile(risk_capacity, risk_score)
                         st.session_state.composite_risk_profile = composite_risk_profile
 
-                        message(f"Your overall risk profile score is: {composite_risk_profile:.2f}", seed=21, key=25)
+                        message(f"Your overall risk profile score is: {composite_risk_profile:.2f}", is_user=False, avatar_style="avataaars",seed=avatar_url)
 
                         # Calculate target risk
                         target_risk = map_composite_risk_profile_to_target_risk(composite_risk_profile)
                         target_risk_percentage = target_risk * 100
-                        st.write(f"Your target risk level is: {target_risk:.2f} ({target_risk_percentage:.1f}%)")
+                        #st.write(f"Your target risk level is: {target_risk:.2f} ({target_risk_percentage:.1f}%)")
 
                         # Optimize portfolio and store the result
                         portfolio_optimization(int(user_age), investment_horizon, float(investment_amount), income, risk_score, target_risk)
                         st.session_state.optimal_portfolio = optimal_portfolio
 
-                        # Show forecast prompt after portfolio optimization
-                        st.session_state.show_forecast_prompt = True
+                        
+                        start_date = datetime.today() - timedelta(days=3650)
+                        message(f"Would you like me to display the next 30-day forecasts for the stocks in your portfolio shown above?", is_user=False, avatar_style="avataaars",seed=avatar_url)
+                        
+                        if st.checkbox('Click for forecast'):
+                            if not st.session_state.forecasts_processed:
+                                st.header('Forecast')
+                                optimal_stocks = st.session_state.optimal_portfolio[st.session_state.optimal_portfolio['Asset'].isin(stocks)]['Asset'].tolist()
+                                process_multiple_tickers(optimal_stocks, start_date)
+                                st.session_state.forecasts_processed = True
+                            #st.write("Forecasts have been processed.")
+                        
+                        message(f"Would you like to view the long-term projected returns of the recommended portfolio?", is_user=False, avatar_style="avataaars",seed=avatar_url)
+                        # Prompt for Monte Carlo simulation
+                        if st.session_state.forecasts_processed:
+                            if st.checkbox('Run Monte Carlo Simulation'):
+                                years_to_simulate = st.text_input('Number of years to simulate:', placeholder='Enter a number between 1 and 30')
+                                if years_to_simulate:
+                                    try:
+                                        years = int(years_to_simulate)
+                                        if years < 1 or years > 30:
+                                            raise ValueError
+                                    except ValueError:
+                                        st.error("Please enter a valid number of years between 1 and 30.")
+                                    else:
+                                        if st.session_state.optimal_portfolio is not None:
+                                            assets = st.session_state.optimal_portfolio['Asset'].tolist()
+                                            weights = st.session_state.optimal_portfolio['Weight (%)'] / 100
+                                            num_trading_days = years * 252
+                                            num_simulations = 500
 
-    
+                                            # Initialize progress bar and spinner
+                                            progress_bar = st.progress(0)
+                                            with st.spinner("Running Monte Carlo simulations..."):
+                                                # Placeholder for displaying the progress
+                                                status_text = st.empty()
+                                                
+                                                summary, sim_returns = monte_carlo_simulation(
+                                                    assets, weights, start_date, num_simulations, num_trading_days, progress_bar, status_text
+                                                )
+                                            
+                                            # st.write("Monte Carlo Simulation Summary:")
+                                            # st.table(summary)
+                                            
+                                            # Set initial investment based on user input
+                                            initial_investment = float(investment_amount)
+                                            
+                                            # Use the lower and upper 95% confidence intervals to calculate the range of the possible outcomes
+                                            port_high_return = round(initial_investment * summary[9], 2)
+                                            port_low_return = round(initial_investment * summary[8], 2)
+
+                                            # Display results
+                                            st.write(f"There is a 95% chance that an initial investment of ${initial_investment} in the portfolio"
+                                                     f" over the next {years} years will end within the range of"
+                                                     f" ${port_low_return} and ${port_high_return}")
+
+                                            lower_annual_return = (port_low_return / initial_investment) ** (1 / years) - 1
+                                            upper_annual_return = (port_high_return / initial_investment) ** (1 / years) - 1
+
+                                            st.write(f"Lower Implied Annual Return: {lower_annual_return * 100:.2f}%")
+                                            st.write(f"Upper Implied Annual Return: {upper_annual_return * 100:.2f}%")
+
+                                            # Plot the simulation results
+                                            fig = sim_returns.plot_simulation_fig()
+                                            st.plotly_chart(fig)
+                                        else:
+                                            st.error("Optimal portfolio not found. Please complete the previous steps.")
+                                
                     else:
                         message("Please answer all questions before submitting.", seed=21, key=25)
 
-            if st.session_state.optimal_portfolio is not None:
-                # Show forecast prompt if ready
-                if st.session_state.show_forecast_prompt:
-                    message("Would you like me to display forecasts of each asset in your portfolio?", seed=21, key=20)
-                    user_input = st.text_input(' ', placeholder='Display forecasts? (enter yes/no)').strip().lower()
-                    
-                    if user_input == 'yes':
-                        optimal_stocks = st.session_state.optimal_portfolio[st.session_state.optimal_portfolio['Asset'].isin(stocks)]['Asset'].tolist()
-                        start_date = datetime.today() - timedelta(days=3650)
-                        process_multiple_tickers(optimal_stocks, start_date, user_input)
-                        
-                        # Prompt for Monte Carlo simulation
-                        message("Would you like to view the Monte Carlo simulation for your portfolio?", seed=21, key=21)
-                        mc_input = st.text_input('  ', placeholder='View Monte Carlo simulation? (enter yes/no)').strip().lower()
-                        
-                        if mc_input == 'yes':
-                            investment_duration = st.number_input('Please input your investment duration Investment Duration (years)', min_value=1, max_value=30, value=15)
-                            assets = st.session_state.optimal_portfolio['Asset'].tolist()
-                            weights = st.session_state.optimal_portfolio['Weight (%)'].tolist()
-                            weights = [w / 100 for w in weights]
-                            start_date = datetime.today() - timedelta(days=365*2)
-                            
-                            # Call Monte Carlo simulation
-                            summary, sim_returns = monte_carlo_simulation(assets, weights, start_date)
-                            
-                            # Display results
-                            initial_investment = 100000
-                            lower_estimate = round(initial_investment * summary[8], 2)
-                            upper_estimate = round(initial_investment * summary[9], 2)
-                            
-                            st.write(f"There is a 95% chance that an initial investment of ${initial_investment} "
-                                    f"in the portfolio over the next {investment_duration} years will end within the range of "
-                                    f"${lower_estimate} and ${upper_estimate}.")
-                            
-                            lower_annual_return = (lower_estimate / initial_investment) ** (1 / 15) - 1
-                            upper_annual_return = (upper_estimate / initial_investment) ** (1 / 15) - 1
-                            
-                            st.write(f"Lower Implied Annual Return: {lower_annual_return * 100:.2f}%")
-                            st.write(f"Upper Implied Annual Return: {upper_annual_return * 100:.2f}%")
-
-                            # Plot the simulation results
-                            fig = sim_returns.plot_simulation()
-                            st.pyplot(fig)
-
-                            # Plot the distribution of final cumulative returns
-                            fig_distribution = sim_returns.plot_distribution()
-                            st.pyplot(fig_distribution)
 botfolio()
-# def botfolio():
-#     user_age = st.text_input('Age', placeholder='Enter your age').strip()
-#     investment_horizon = st.selectbox(
-#         "Select your investment horizon",
-#         options=[
-#             "Short-Term",
-#             "Medium-Term",
-#             "Long-Term",
-#         ]
-#     )
-#     investment_amount = st.text_input('Investment Amount', placeholder='Enter your investment amount in USD').strip()
-#     income = st.selectbox(
-#         "Select your annual income range:",
-#         options=[
-#             "Less than $30,000",
-#             "$30,000 - $49,999",
-#             "$50,000 - $99,999",
-#             "$100,000 - $149,999",
-#             "$150,000 - $199,999",
-#             "More than $200,000"
-#         ]
-#     )
-
-#     if "current_question" not in st.session_state:
-#         st.session_state.current_question = 0
-#         st.session_state.answers = [None] * len(RISK_QUESTIONS)
-    
-#     if user_age and investment_horizon and investment_amount and income:
-#         user_details = (
-#                 f"I am {user_age} years old\n"
-#                 f"with an annual income of {income}\n"
-#                 f"and I am willing to invest ${investment_amount}\n"
-#                 f"for an investment horizon of {investment_horizon}"
-#         )
-#         message(user_details, is_user=True, seed=1, key=12)
-
-#         age_verification_message = user_age_verification(user_age)
-#         message(age_verification_message, seed=21, key=17)
-
-#         if "Enjoy the use" in age_verification_message:
-#             risk_capacity = calculate_risk_capacity(int(user_age), investment_horizon, float(investment_amount), income)
-#             if risk_capacity >= 0.75:
-#                 risk_capacity_level = "High"
-#             elif risk_capacity >= 0.5:
-#                 risk_capacity_level = "Moderate"
-#             else:
-#                 risk_capacity_level = "Low"
-#             message(f"Your risk capacity is: {risk_capacity} and {risk_capacity_level}", seed=21, key=18)
-
-#             current_question = st.session_state.current_question
-
-#             st.write(RISK_QUESTIONS[current_question])
-
-#             if st.session_state.answers[current_question] is not None:
-#                 try:
-#                     answer = st.radio(
-#                         "Select an option:",
-#                         OPTIONS[current_question],
-#                         index=OPTIONS[current_question].index(st.session_state.answers[current_question]),
-#                         key=f"q{current_question}"
-#                     )
-#                 except ValueError:
-#                     answer = st.radio(
-#                         "Select an option:",
-#                         OPTIONS[current_question],
-#                         key=f"q{current_question}"
-#                     )
-#             else:
-#                 answer = st.radio(
-#                     "Select an option:",
-#                     OPTIONS[current_question],
-#                     key=f"q{current_question}"
-#                 )
-
-#             if answer:
-#                 st.session_state.answers[current_question] = answer
-
-#             col1, col2, col3 = st.columns([1, 1, 2])
-
-#             with col1:
-#                 if current_question > 0:
-#                     if st.button("Previous"):
-#                         st.session_state.current_question -= 1
-#                         st.experimental_rerun()
-
-#             with col2:
-#                 if current_question < len(RISK_QUESTIONS) - 1:
-#                     if st.button("Next"):
-#                         st.session_state.current_question += 1
-#                         st.experimental_rerun()
-        
-#             if "risk_score" not in st.session_state:
-#                 st.session_state.risk_score = None
-#             if "composite_risk_profile" not in st.session_state:
-#                 st.session_state.composite_risk_profile = None
-#             if "optimal_portfolio" not in st.session_state:
-#                 st.session_state.optimal_portfolio = None
-
-#             if current_question == len(RISK_QUESTIONS) - 1:
-#                 if st.button("Submit"):
-#                     if None not in st.session_state.answers:
-#                         risk_score = 0
-#                         for i, answer in enumerate(st.session_state.answers):
-#                             index = OPTIONS[i].index(answer)
-#                             risk_score += SCORES[i][index]
-
-#                         st.session_state.risk_score = risk_score
-
-#                         if risk_score >= 33:
-#                             risk_level = "High tolerance for risk"
-#                         elif risk_score >= 29:
-#                             risk_level = "Above-average tolerance for risk"
-#                         elif risk_score >= 23:
-#                             risk_level = "Average/moderate tolerance for risk"
-#                         elif risk_score >= 19:
-#                             risk_level = "Below-average tolerance for risk"
-#                         else:
-#                             risk_level = "Low tolerance for risk"
-
-#                         message(f"Your risk tolerance score is {risk_score}, indicating a {risk_level}.", seed=21, key=24)
-#                         # Display risk score chart
-#                         fig = display_risk_score_chart(risk_score)
-#                         st.plotly_chart(fig)
-
-#                         # Calculate and store composite risk profile
-#                         composite_risk_profile = calculate_composite_risk_profile(risk_capacity, risk_score)
-#                         st.session_state.composite_risk_profile = composite_risk_profile
-
-#                         message(f"Your overall risk profile score is: {composite_risk_profile:.2f}", seed=21, key=25)
-
-#                         # Calculate target risk
-#                         target_risk = map_composite_risk_profile_to_target_risk(composite_risk_profile)
-#                         target_risk_percentage = target_risk * 100
-#                         st.write(f"Your target risk level is: {target_risk:.2f} ({target_risk_percentage:.1f}%)")
-
-#                         # Optimize portfolio and store the result
-#                         portfolio_optimization(int(user_age), investment_horizon, float(investment_amount), income, risk_score, target_risk)
-#                         st.session_state.optimal_portfolio = optimal_portfolio
-
-#                         start_date = datetime.today() - timedelta(days=3650)
-#                         message("Would you like me to display forecasts of each asset in your portfolio?", seed=21, key=20)
-#                         user_input = st.text_input(' ', placeholder='Display forecasts? (enter yes/no)').strip().lower()
-                        
-#                         if user_input == 'yes' and st.session_state.optimal_portfolio is not None:
-#                             optimal_stocks = st.session_state.optimal_portfolio[st.session_state.optimal_portfolio['Asset'].isin(stocks)]['Asset'].tolist()
-#                             process_multiple_tickers(optimal_stocks, start_date, user_input)
-#                     else:
-#                         message("Please answer all questions before submitting.", seed=21, key=25)
-
-
-# botfolio()

@@ -1,0 +1,6 @@
+.stApp .root .chat .msg {
+    background-color: blue;
+    color: white; /* Change the text color if necessary */
+    padding: 10px;
+    border-radius: 5px; /* Optional: to make the corners rounded */
+}

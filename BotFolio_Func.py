@@ -12,6 +12,8 @@ from prophet import Prophet
 from datetime import datetime, timedelta
 import yahoo_fin.stock_info as si
 
+from MCPortfolioSimulator_LR import PortfolioSimulator
+
 
 investment_portfolio = []
 portfolio_weights = []
@@ -20,7 +22,7 @@ investment_allocation = []
 def user_age_verification(age):
     # Ensure that user_age is a string and check if it's a digit
     if not isinstance(age, str) or not age.isdigit():
-        return "I'm sorry, but it looks like you entered an invalid number. Please enter a valid whole number!"
+        return "I'm sorry, but it looks like you entered an invalid number for your age. Please enter a valid whole number! (e.g, 18, 40, 65)"
 
     # Safe to convert to int now that we've confirmed it's all digits
     age = int(age)
@@ -77,7 +79,6 @@ def fetch_historical_data(ticker, start_date):
         print(f"Error fetching data for {ticker}: {e}")
         return pd.DataFrame()
 
-
 # def display_forecasts_from_data(df, ticker, periods=30):
 #     if df.empty:
 #         print(f"Error: Empty DataFrame for {ticker}")
@@ -116,7 +117,6 @@ def display_forecasts_from_data(df, ticker, periods=30):
     df.rename(columns={'Date': 'ds', 'Close': 'y'}, inplace=True)
     df.dropna(inplace=True)
 
-    # Load the saved model
     model_filename = f"Machine Learning\Models\{ticker}_prophet_model.pkl"
     try:
         model = joblib.load(model_filename)
@@ -138,15 +138,11 @@ def display_forecasts_from_data(df, ticker, periods=30):
 
     forecast = model.predict(future)
 
-    #print(forecast[['ds', 'yhat']])
     forecast['Forecasted Close'] = df['y'].iloc[-1] + (forecast['yhat'] - forecast['yhat'].iloc[0])
     forecast['Forecasted High'] = df['y'].iloc[-1] + (forecast['yhat_upper'] - forecast['yhat_upper'].iloc[0])
     forecast['Forecasted Low'] = df['y'].iloc[-1] + (forecast['yhat_lower'] - forecast['yhat_lower'].iloc[0])
     
-    # Generate candlestick data
     forecast['Open'] = forecast['Forecasted Close'].shift(1)
-    # forecast['High'] = forecast[['Forecasted Close', 'Open']].max(axis=1)
-    # forecast['Low'] = forecast[['Forecasted Close', 'Open']].min(axis=1)
     forecast['High'] = forecast['Forecasted High']
     forecast['Low'] = forecast['Forecasted Low']
     forecast['Close'] = forecast['Forecasted Close']
@@ -159,12 +155,8 @@ def display_forecasts_from_data(df, ticker, periods=30):
                                          close=forecast['Close'],
                                          increasing_line_color='green', decreasing_line_color='red')])
     
-
-    
-    # Adjust y-axis range for a tighter view
     y_min = forecast['Low'].min() * 0.995
     y_max = forecast['High'].max() * 1.005
-
 
     fig.update_layout(title=f'{ticker} 30-Day Forecast',
                       xaxis_title='Date',
@@ -175,25 +167,107 @@ def display_forecasts_from_data(df, ticker, periods=30):
     return fig
 
 
-def process_multiple_tickers(tickers, start_date, user_confirmation):
-
-    user_confirmation = user_confirmation.strip().lower()
-
-    if user_confirmation == 'yes':
-        figures = {}
-        with st.spinner("Displaying Forecasts..."):
-            time.sleep(0.5)
-            for ticker in tickers:
+def process_multiple_tickers(tickers, start_date):
+    figures = {}
+    fetched_data = st.session_state.fetched_data  # Use cached data
+    with st.spinner("Displaying Forecasts..."):
+        time.sleep(0.5)
+        for ticker in tickers:
+            if ticker in fetched_data:
+                print(f"Using cached data for {ticker}")
+                historical_data = fetched_data[ticker]
+            else:
+                print(f"Fetching data for {ticker}")
                 historical_data = fetch_historical_data(ticker, start_date)
                 if not historical_data.empty:
-                    fig = display_forecasts_from_data(historical_data, ticker)
-                    if fig:
-                        figures[ticker] = fig
-            time.sleep(0.5) 
+                    fetched_data[ticker] = historical_data  # Cache the fetched data
+                else:
+                    print(f"No data fetched for {ticker}")
+                    continue
+            
+            print(f"Data for {ticker}: {historical_data.shape[0]} rows")
+            fig = display_forecasts_from_data(historical_data, ticker)
+            if fig:
+                figures[ticker] = fig
+                fetched_data[ticker] = historical_data  # Store fetched data
+            else:
+                print(f"Error generating forecast for {ticker}")
+        time.sleep(0.5)
 
-        # If figures are created, display them in Streamlit
-        if figures:
-            selected_ticker = st.selectbox('Select a ticker to display the forecast:', list(figures.keys()))
-            st.plotly_chart(figures[selected_ticker])
+    if figures:
+        st.session_state.fetched_data = fetched_data  # Store all fetched data in session state
+        selected_ticker = st.selectbox('Select a ticker to display the forecast:', list(figures.keys()))
+        st.plotly_chart(figures[selected_ticker])
+    else:
+        st.error("No data available for the selected tickers.")
+
+
+def monte_carlo_simulation(assets, weights, start_date, num_simulations, num_trading_days, progress_bar, status_text):
+    end_date = datetime.now()
+    all_assets_df = pd.DataFrame()
+    for asset in assets:
+        df = si.get_data(asset, start_date=start_date, end_date=end_date, index_as_date=True)
+        df.rename(columns={
+            'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close',
+            'adjclose': 'adj close', 'volume': 'volume'
+        }, inplace=True)
+        if all_assets_df.empty:
+            all_assets_df = df
+            all_assets_df.columns = pd.MultiIndex.from_product([[asset], all_assets_df.columns])
         else:
-            st.error("No data available for the selected tickers.")
+            df.columns = pd.MultiIndex.from_product([[asset], df.columns])
+            all_assets_df = pd.concat([all_assets_df, df], axis=1)
+    all_assets_df.dropna(inplace=True)
+    historical_returns = {}
+    for asset in assets:
+        close_prices = all_assets_df[asset]['close']
+        daily_returns = close_prices.pct_change().dropna()
+        avg_daily_return = daily_returns.mean()
+        annual_return = ((1 + avg_daily_return) ** 252 - 1) * 100
+        historical_returns[asset] = annual_return
+    sim_returns = PortfolioSimulator(
+        portfolio_data=all_assets_df,
+        annual_returns=historical_returns,
+        weights=weights,
+        num_simulation=num_simulations,
+        num_trading_days=num_trading_days,
+        progress_bar=progress_bar,
+        status_text=status_text
+    )
+    cumulative_returns = sim_returns.calc_cumulative_return()
+    summary = sim_returns.summarize_cumulative_return()
+    return summary, sim_returns
+
+# def monte_carlo_simulation(assets, weights, start_date, num_simulations=500, num_trading_days=252*15):
+#     end_date = datetime.now()
+#     all_assets_df = pd.DataFrame()
+#     for asset in assets:
+#         df = si.get_data(asset, start_date=start_date, end_date=end_date, index_as_date=True)
+#         df.rename(columns={
+#             'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close',
+#             'adjclose': 'adj close', 'volume': 'volume'
+#         }, inplace=True)
+#         if all_assets_df.empty:
+#             all_assets_df = df
+#             all_assets_df.columns = pd.MultiIndex.from_product([[asset], all_assets_df.columns])
+#         else:
+#             df.columns = pd.MultiIndex.from_product([[asset], df.columns])
+#             all_assets_df = pd.concat([all_assets_df, df], axis=1)
+#     all_assets_df.dropna(inplace=True)
+#     historical_returns = {}
+#     for asset in assets:
+#         close_prices = all_assets_df[asset]['close']
+#         daily_returns = close_prices.pct_change().dropna()
+#         avg_daily_return = daily_returns.mean()
+#         annual_return = ((1 + avg_daily_return) ** 252 - 1) * 100
+#         historical_returns[asset] = annual_return
+#     sim_returns = PortfolioSimulator(
+#         portfolio_data=all_assets_df,
+#         annual_returns=historical_returns,
+#         weights=weights,
+#         num_simulation=num_simulations,
+#         num_trading_days=num_trading_days
+#     )
+#     cumulative_returns = sim_returns.calc_cumulative_return()
+#     summary = sim_returns.summarize_cumulative_return()
+#     return summary, sim_returns
