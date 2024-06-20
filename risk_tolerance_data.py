@@ -24,7 +24,7 @@ OPTIONS = [
     ["a. Not at all comfortable", "b. Somewhat comfortable", "c. Very Comfortable"],
     ["a. Loss", "b. Uncertainty", "c. Opportunity", "d. Thrill"],
     ["a. Hold the bonds", "b. Sell the bonds, put half the proceeds into money market accounts, and the other half into hard assets", "c. Sell the bonds and put the total proceeds into hard assets", "d. Sell the bonds, put all the money into hard assets, and borrow additional money to buy more"],
-    ["a. $200 gain best case; $0 gain/loss worst case", "b. $800 gain best case, $200 loss worst case", "c. $2,600 gain best case, $800 loss worst case", "d. $4,800 gain best case, $2,400 loss worst case"],
+    ["a. \$200 gain best case; $0 gain/loss worst case", "b. \$800 gain best case, $200 loss worst case", "c. \$2,600 gain best case, $800 loss worst case", "d. \$4,800 gain best case, $2,400 loss worst case"],
     ["a. A sure gain of $500", "b. A 50% chance to gain $1,000 and a 50% chance to gain nothing"],
     ["a. A sure loss of $500", "b. A 50% chance to lose $1,000 and a 50% chance to lose nothing"],
     ["a. A savings account or money market mutual fund", "b. A mutual fund that owns stocks and bonds", "c. A portfolio of 15 common stocks", "d. Commodities like gold, silver, and oil"],

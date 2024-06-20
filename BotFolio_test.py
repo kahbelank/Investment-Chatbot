@@ -1,3 +1,4 @@
+import time
 from tkinter import Image
 import requests
 import streamlit as st
@@ -10,10 +11,34 @@ from scipy.optimize import minimize
 import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
+from streamlit_extras.stateful_button import button
 
 from BotFolio_Func import monte_carlo_simulation, user_age_verification, process_multiple_tickers
 from risk_tolerance_data import RISK_QUESTIONS, OPTIONS, SCORES
 
+# Sidebar for app information
+with st.sidebar:
+    st.title("About OptiFi")
+    st.markdown("""
+        **OptiFi** is your personalized investment advisor.
+        This app helps you create an optimized investment portfolio based on your risk profile and investment preferences.
+
+        ### Features:
+        - **Risk Assessment:** Determine your risk tolerance and capacity.
+        - **Portfolio Optimization:** Get recommendations for an optimal investment portfolio.
+        - **Forecasts:** View stock price prediction for stocks in your portfolio.
+        - **Monte Carlo Simulation:** See long-term projected returns based on Monte Carlo simulations.
+
+        ### How to Use:
+        1. Enter your age, investment horizon, investment amount, and income.
+        2. Complete the risk tolerance questionnaire.
+        3. Run the portfolio optimization to get your recommended portfolio.
+        4. Optionally, view forecasts and long-term projections.
+
+        ### Disclaimer:
+        - The Portfolio Creation, Forecasting and Long-term projections are based on historical data of 2 years up till the current date, making it dynamic. Hence, the results may take about 2 to 3 minutes to complete.
+        - This tool is for educational purposes only and should not be considered financial advice.
+    """)
 
 # Initialize session state for fetched data
 if 'fetched_data' not in st.session_state:
@@ -284,8 +309,18 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     # Create a DataFrame for the filtered and normalized portfolio
     optimal_portfolio = pd.DataFrame({'Asset': non_zero_assets_percent, 'Weight (%)': non_zero_weights_percent})
 
+
+    allocation_message = "Your portfolio allocation is as follows:\n\n"
+    message(allocation_message, is_user=False, avatar_style="avataaars", seed=avatar_url)
+
     st.write("Optimal Portfolio Allocation:")
     st.table(optimal_portfolio)
+
+    # Explanation for the split
+    explanation_message = ("The portfolio allocation above is designed based on your risk profile to balance risk and return.\n\n"
+                       "Higher percentages in stocks indicate a more aggressive approach, while higher percentages in bonds and REITs indicate a more conservative approach.\n\n"
+                       "This allocation aims to achieve the optimal balance for your risk profile and investment horizon.")
+
 
 
     optimal_return, optimal_volatility = portfolio_annualized_performance(rounded_weights, mean_returns.loc[non_zero_assets], cov_matrix.loc[non_zero_assets, non_zero_assets])
@@ -305,6 +340,10 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     total_bonds = sum(weight for asset, weight in user_portfolio["Bonds"])
     total_reits = sum(weight for asset, weight in user_portfolio["REITs"])
 
+    portfolio_plot_message = ("The donut plot below shows the allocation of your investment amount across different asset classes.\n"
+                          "\nThis visual representation helps you understand the distribution of your investment in Stocks, Bonds, and REITs.")
+    message(portfolio_plot_message, is_user=False, avatar_style="avataaars", seed=avatar_url)
+
     # Define the data for the donut plot
     labels = ['Stocks', 'Bonds', 'REITs']
     values = [total_stocks * float(investment_amount), total_bonds * float(investment_amount), total_reits * float(investment_amount)]
@@ -318,6 +357,11 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     # Display the plot in Streamlit
     st.plotly_chart(fig)
 
+    # Investment Amount Allocation Table
+    investment_table_message = ("The table below details the allocation of your investment amount in dollar terms.\n"
+                                "\nIt breaks down your investment into specific amounts allocated to Stocks, Bonds, and REITs based on the calculated percentages.")
+    message(investment_table_message, is_user=False, avatar_style="avataaars", seed=avatar_url)
+
     amount_stocks = total_stocks * float(investment_amount)
     amount_bonds = total_bonds * float(investment_amount)
     amount_reits = total_reits * float(investment_amount)
@@ -329,6 +373,8 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
 
     st.write("Investment Amount Allocation:")
     st.table(investment_allocation)
+        # Display the messages
+    message(explanation_message, is_user=False, avatar_style="avataaars", seed=avatar_url)
 
 
 # Initialize state variables at the beginning
@@ -345,6 +391,11 @@ if "current_question" not in st.session_state:
     st.session_state.show_forecast_prompt = False  # New state variable for forecast prompt
     st.session_state.show_forecasts = False   # New state variable for forecast prompt
     st.session_state.forecasts_processed = False
+    st.session_state.forecast_yes_clicked = False  # New state variable for "Yes" button
+    st.session_state.forecast_no_clicked = False
+    st.session_state.monte_yes_clicked = False  # New state variable for "Yes" button
+    st.session_state.monte_no_clicked = False
+    st.session_state.optimization_run = False
 
 
 def reset_calculations():
@@ -354,6 +405,11 @@ def reset_calculations():
     st.session_state.show_forecast_prompt = False  # Reset forecast prompt
     st.session_state.show_forecasts = False  
     st.session_state.forecasts_processed = False
+    st.session_state.forecast_yes_clicked = False  # Reset "Yes" button state
+    st.session_state.forecast_no_clicked = False # Reset "No" button state
+    st.session_state.monte_yes_clicked = False  # New state variable for "Yes" button
+    st.session_state.monte_no_clicked = False
+    st.session_state.optimization_run = False
 
 
 
@@ -364,6 +420,7 @@ def botfolio():
 # = st.sidebar.checkbox('Forecast')
     
     message("Welcome to OptiFi! Let's get started by collecting some information about you to determine your risk capacity.", is_user=False, avatar_style="avataaars",seed=avatar_url)
+    st.subheader("Risk Capacity Assessment", divider='green')
     user_age = st.text_input('Age', placeholder='Enter your age').strip()
     investment_horizon = st.selectbox(
     "Select your investment horizon",
@@ -421,7 +478,10 @@ def botfolio():
             else:
                 risk_capacity_level = "Low"
             #message(f"Your risk capacity is: {risk_capacity} and {risk_capacity_level}", seed=21, key=18)
-            message(f"Based on your inputs, I have determine that you have a {risk_capacity_level} risk capacity.\n\n Next, please complete the risk tolerance questionnaire below to allow me to determine your risk tolerance:", is_user=False, avatar_style="avataaars",seed=avatar_url)
+            message(f"Based on your inputs, I have determined that you have a {risk_capacity_level} risk capacity.\n\n Next, please complete the risk tolerance questionnaire below to allow me to determine your risk tolerance:", is_user=False, avatar_style="avataaars",seed=avatar_url)
+            st.subheader("Risk Tolerance Questionnaire", divider='blue')
+            if "submit_clicked" not in st.session_state:
+                st.session_state.submit_clicked = False
             current_question = st.session_state.current_question
 
             st.write(RISK_QUESTIONS[current_question])
@@ -472,7 +532,7 @@ def botfolio():
                 st.session_state.optimal_portfolio = None
 
             if current_question == len(RISK_QUESTIONS) - 1:
-                if st.checkbox("Submit"):
+                 if button("Submit", key="submit"):
                     if None not in st.session_state.answers:
                         risk_score = 0
                         for i, answer in enumerate(st.session_state.answers):
@@ -501,86 +561,133 @@ def botfolio():
                         composite_risk_profile = calculate_composite_risk_profile(risk_capacity, risk_score)
                         st.session_state.composite_risk_profile = composite_risk_profile
 
-                        message(f"Your overall risk profile score is: {composite_risk_profile:.2f}", is_user=False, avatar_style="avataaars",seed=avatar_url)
+                        message(f"Your overall risk profile score is: {composite_risk_profile:.2f} \n\n Based on your risk profile, I will now proceed to determine your portfolio type and the recommended allocations. \n\nPlease tick the checkbox below to run the portfolio optimization process", is_user=False, avatar_style="avataaars",seed=avatar_url)
 
                         # Calculate target risk
                         target_risk = map_composite_risk_profile_to_target_risk(composite_risk_profile)
                         target_risk_percentage = target_risk * 100
                         #st.write(f"Your target risk level is: {target_risk:.2f} ({target_risk_percentage:.1f}%)")
+                        if st.checkbox("Run Portfolio Optimization") and not st.session_state.optimization_run:
+                            with st.spinner('Creating your portfolio...'):
+                                # Optimize portfolio and store the result
+                                st.subheader("Recommended Portfolio", divider='orange')
+                                portfolio_optimization(int(user_age), investment_horizon, float(investment_amount), income, risk_score, target_risk)
+                                st.session_state.optimal_portfolio = optimal_portfolio
+                                st.session_state.optimization_run = True
+                                 
 
-                        # Optimize portfolio and store the result
-                        portfolio_optimization(int(user_age), investment_horizon, float(investment_amount), income, risk_score, target_risk)
-                        st.session_state.optimal_portfolio = optimal_portfolio
+            
+                            start_date = datetime.today() - timedelta(days=3650)
+                        if st.session_state.optimization_run:
+                            if not st.session_state.get('forecast_prompt_shown', False):
+                                message("Would you like me to display the next 30-day forecasts for the stocks in your portfolio shown above?", is_user=False, avatar_style="avataaars", seed=avatar_url)
+                                st.session_state.forecast_prompt_shown = True
 
-                        
-                        start_date = datetime.today() - timedelta(days=3650)
-                        message(f"Would you like me to display the next 30-day forecasts for the stocks in your portfolio shown above?", is_user=False, avatar_style="avataaars",seed=avatar_url)
-                        
-                        if st.checkbox('Click for forecast'):
-                            if not st.session_state.forecasts_processed:
-                                st.header('Forecast')
+                            forecast_selection = st.selectbox("Please select an option from the dropdown menu",
+                                                            options=["Select an option", "Yes", "No"],
+                                                            index=0,
+                                                            key="forecast_selection")
+
+                            if forecast_selection == "Yes" and not st.session_state.forecast_yes_clicked:
+                                st.session_state.forecast_yes_clicked = True
+                                st.session_state.forecast_no_clicked = False
+                                # Display user message
+                                message("Yes, I would like to view the forecasts", is_user=True, avatar_style="thumbs", seed=avatar_user)
+                                # Display chatbot response
+                                message("Okay, I will process the forecasts now.", is_user=False, avatar_style="avataaars", seed=avatar_url)
+                                # Pause for 4 seconds
+                                time.sleep(4)
+                            elif forecast_selection == "No" and not st.session_state.forecast_no_clicked:
+                                st.session_state.forecast_yes_clicked = False
+                                st.session_state.forecast_no_clicked = True
+                                message("No, I would not like to view the forecasts", is_user=True, avatar_style="thumbs", seed=avatar_user)
+                                time.sleep(4)
+
+                            if st.session_state.forecast_yes_clicked and not st.session_state.forecasts_processed:
+                                st.subheader("Stock Price Forecasts", divider='violet')
                                 optimal_stocks = st.session_state.optimal_portfolio[st.session_state.optimal_portfolio['Asset'].isin(stocks)]['Asset'].tolist()
                                 process_multiple_tickers(optimal_stocks, start_date)
                                 st.session_state.forecasts_processed = True
-                            #st.write("Forecasts have been processed.")
-                        
-                        message(f"Would you like to view the long-term projected returns of the recommended portfolio?", is_user=False, avatar_style="avataaars",seed=avatar_url)
-                        # Prompt for Monte Carlo simulation
-                        if st.session_state.forecasts_processed:
-                            if st.checkbox('Run Monte Carlo Simulation'):
-                                years_to_simulate = st.text_input('Number of years to simulate:', placeholder='Enter a number between 1 and 30')
-                                if years_to_simulate:
-                                    try:
-                                        years = int(years_to_simulate)
-                                        if years < 1 or years > 30:
-                                            raise ValueError
-                                    except ValueError:
-                                        st.error("Please enter a valid number of years between 1 and 30.")
-                                    else:
-                                        if st.session_state.optimal_portfolio is not None:
-                                            assets = st.session_state.optimal_portfolio['Asset'].tolist()
-                                            weights = st.session_state.optimal_portfolio['Weight (%)'] / 100
-                                            num_trading_days = years * 252
-                                            num_simulations = 500
+                                #st.write("Forecasts have been processed.")
 
-                                            # Initialize progress bar and spinner
-                                            progress_bar = st.progress(0)
-                                            with st.spinner("Running Monte Carlo simulations..."):
-                                                # Placeholder for displaying the progress
-                                                status_text = st.empty()
-                                                
-                                                summary, sim_returns = monte_carlo_simulation(
-                                                    assets, weights, start_date, num_simulations, num_trading_days, progress_bar, status_text
-                                                )
-                                            
-                                            # st.write("Monte Carlo Simulation Summary:")
-                                            # st.table(summary)
-                                            
-                                            # Set initial investment based on user input
-                                            initial_investment = float(investment_amount)
-                                            
-                                            # Use the lower and upper 95% confidence intervals to calculate the range of the possible outcomes
-                                            port_high_return = round(initial_investment * summary[9], 2)
-                                            port_low_return = round(initial_investment * summary[8], 2)
+                            if st.session_state.forecasts_processed or st.session_state.forecast_no_clicked:
+                                #if not st.session_state.get('monte_prompt_shown', False):
+                                message("Would you like to view the long-term projected returns of the recommended portfolio?", is_user=False, avatar_style="avataaars", seed=avatar_url)
+                                    
 
-                                            # Display results
-                                            st.write(f"There is a 95% chance that an initial investment of ${initial_investment} in the portfolio"
-                                                     f" over the next {years} years will end within the range of"
-                                                     f" ${port_low_return} and ${port_high_return}")
+                                monte_selection = st.selectbox("Please select an option from the dropdown menu",
+                                                            options=["Select an option", "Yes", "No"],
+                                                            index=0,
+                                                            key="monte_selection")
 
-                                            lower_annual_return = (port_low_return / initial_investment) ** (1 / years) - 1
-                                            upper_annual_return = (port_high_return / initial_investment) ** (1 / years) - 1
+                                if monte_selection == "Yes":
+                                    st.session_state.monte_yes_clicked = True
+                                    st.session_state.monte_no_clicked = False
+                                    message("Yes, I would like to view the long-term projected returns", is_user=True, avatar_style="thumbs", seed=avatar_user)
+                                    message("Okay, I will process the long-term projected simulation.\n\n Please enter the number of years you would like to project for, and to begin the processing, tick the checkbox to run the simulation", is_user=False, avatar_style="avataaars", seed=avatar_url)
+                                    time.sleep(4)  # Pause for 4 seconds
+                                    st.subheader("Long-term Project Returns Simulations", divider='red')
+                                    years_to_simulate = st.text_input('Number of years to simulate:', placeholder='Enter a number between 1 and 30')
 
-                                            st.write(f"Lower Implied Annual Return: {lower_annual_return * 100:.2f}%")
-                                            st.write(f"Upper Implied Annual Return: {upper_annual_return * 100:.2f}%")
+                                    if st.checkbox("Run Simulation"):
+                                        if years_to_simulate:
+                                            try:
+                                                years = int(years_to_simulate)
+                                                if years < 1 or years > 30:
+                                                    raise ValueError
+                                            except ValueError:
+                                                st.error("Please enter a valid number of years between 1 and 30.")
+                                            else:
+                                                if st.session_state.optimal_portfolio is not None:
+                                                    assets = st.session_state.optimal_portfolio['Asset'].tolist()
+                                                    weights = st.session_state.optimal_portfolio['Weight (%)'] / 100
+                                                    num_trading_days = years * 252
+                                                    num_simulations = 500
 
-                                            # Plot the simulation results
-                                            fig = sim_returns.plot_simulation_fig()
-                                            st.plotly_chart(fig)
-                                        else:
-                                            st.error("Optimal portfolio not found. Please complete the previous steps.")
-                                
+                                                    # Initialize progress bar and spinner
+                                                    progress_bar = st.progress(0)
+                                                    with st.spinner("Running Monte Carlo simulations..."):
+                                                        # Placeholder for displaying the progress
+                                                        status_text = st.empty()
+
+                                                        summary, sim_returns = monte_carlo_simulation(
+                                                            assets, weights, start_date, num_simulations, num_trading_days, progress_bar, status_text
+                                                        )
+
+                                                    # Set initial investment based on user input
+                                                    initial_investment = float(investment_amount)
+
+                                                    # Use the lower and upper 95% confidence intervals to calculate the range of the possible outcomes
+                                                    port_high_return = round(initial_investment * summary[9], 2)
+                                                    port_low_return = round(initial_investment * summary[8], 2)
+
+                                                    test = f"""
+                                                        There is a 95% chance that an initial investment of **\${initial_investment}** in the portfolio
+                                                        over the next **{years} years** will end within the range of: **\${port_low_return} to \${port_high_return}**
+                                                        """
+
+                                                    st.write(test)
+                                                                                                
+                    
+                                                    lower_annual_return = (port_low_return / initial_investment) ** (1 / years) - 1
+                                                    upper_annual_return = (port_high_return / initial_investment) ** (1 / years) - 1
+
+                                                    st.write(f"Lower Implied Annual Return: {lower_annual_return * 100:.2f}%")
+                                                    st.write(f"Upper Implied Annual Return: {upper_annual_return * 100:.2f}%")
+
+                                                    # Plot the simulation results
+                                                    fig = sim_returns.plot_simulation_fig()
+                                                    st.plotly_chart(fig)
+                                                    message("Thank you for using OptiFi! To create a new portfolio, please restart in a new session or amend your current inputs.", is_user=False, avatar_style="avataaars", seed=avatar_url)
+                                                else:
+                                                    st.error("Optimal portfolio not found. Please complete the previous steps.")
+                                elif monte_selection == "No":
+                                    st.session_state.monte_yes_clicked = False
+                                    st.session_state.monte_no_clicked = True
+                                    message("No, I would not like to view the long-term projected returns", is_user=True, avatar_style="thumbs", seed=avatar_user)
+                                    time.sleep(4)
+                                    message("Thank you for using OptiFi! To create a new portfolio, please restart in a new session or amend your current inputs.", is_user=False, avatar_style="avataaars", seed=avatar_url)
                     else:
-                        message("Please answer all questions before submitting.", seed=21, key=25)
+                        message("Please answer all questions before submitting.", is_user=False, avatar_style="avataaars", seed=avatar_url)
 
 botfolio()
