@@ -289,6 +289,7 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     else:
         portfolio_type = "Aggressive"
 
+    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
     message(f"Based on the efficient frontier, your portfolio type is: {portfolio_type}", is_user=False, avatar_style="avataaars",seed=avatar_url)
 
     non_zero_weights = selected_weights[selected_weights > 0]
@@ -311,6 +312,7 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
 
 
     allocation_message = "Your portfolio allocation is as follows:\n\n"
+    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
     message(allocation_message, is_user=False, avatar_style="avataaars", seed=avatar_url)
 
     st.write("Optimal Portfolio Allocation:")
@@ -342,6 +344,7 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
 
     portfolio_plot_message = ("The donut plot below shows the allocation of your investment amount across different asset classes.\n"
                           "\nThis visual representation helps you understand the distribution of your investment in Stocks, Bonds, and REITs.")
+    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
     message(portfolio_plot_message, is_user=False, avatar_style="avataaars", seed=avatar_url)
 
     # Define the data for the donut plot
@@ -360,6 +363,7 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     # Investment Amount Allocation Table
     investment_table_message = ("The table below details the allocation of your investment amount in dollar terms.\n"
                                 "\nIt breaks down your investment into specific amounts allocated to Stocks, Bonds, and REITs based on the calculated percentages.")
+    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
     message(investment_table_message, is_user=False, avatar_style="avataaars", seed=avatar_url)
 
     amount_stocks = total_stocks * float(investment_amount)
@@ -374,6 +378,7 @@ def portfolio_optimization(user_age, investment_horizon, investment_amount, inco
     st.write("Investment Amount Allocation:")
     st.table(investment_allocation)
         # Display the messages
+    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
     message(explanation_message, is_user=False, avatar_style="avataaars", seed=avatar_url)
 
 
@@ -415,22 +420,71 @@ def reset_calculations():
 
 avatar_user = "https://api.dicebear.com/9.x/thumbs/svg?seed=white&backgroundColor=69d2e7&backgroundType=gradientLinear"
 avatar_url ="https://api.dicebear.com/9.x/avataaars-neutral/svg?seed=James2&backgroundColor=ffd5dc&backgroundType=gradientLinear&eyes=happy&hairColor=2c1b18&skinColor=d08b5b,edb98a"
+tooltips = {
+    "age": (
+        "The age score is calculated by normalizing the age within a predefined range. "
+        "Younger investors typically have a higher capacity for risk due to a longer recovery horizon. "
+        "This decision is based on the life-cycle hypothesis which suggests younger individuals are in the wealth accumulation phase."
+    ),
+    "investment_horizon": (
+        "The investment horizon is the time you plan to keep your investments. "
+        "Longer horizons allow for higher risk capacity as there's more time to recover from market downturns. "
+        "We score this based on whether it's short, medium, or long-term."
+    ),
+    "investment_amount": (
+        "Larger investment amounts suggest a greater ability to handle losses, indicating a higher risk capacity. "
+        "We normalize this amount to a scale to make sure very large amounts don't overly influence the score."
+    ),
+    "income": (
+        "The income score evaluates your capacity for financial risk based on your annual earnings. "
+        "Higher incomes allow for more risk-taking due to increased financial stability. "
+        "Income levels are categorized into ranges, each assigned a normalized score from 0 to 1."
+    ),
+    "risk_capacity": (
+        "Risk capacity combines objective measures like age, investment horizon, investment amount, and income. "
+        "These factors are normalized and combined to create an overall risk capacity score."
+    ),
+    "risk_tolerance": (
+        "Risk tolerance assesses your psychological comfort with risk through a standardized questionnaire. "
+        "The 13-Item Risk Tolerance Scale, validated by extensive research, is used to gauge your comfort level with market fluctuations and potential losses."
+    ),
+    "portfolio_optimization": (
+        "Portfolio optimization uses Modern Portfolio Theory (MPT) to recommend an optimal portfolio. "
+        "Historical returns and the covariance matrix are calculated to construct the Efficient Frontier, identifying the best portfolios for a given risk level. "
+        "This involves analyzing historical returns and risks of different assets to find the best mix for your risk level."
+    ),
+    "short_term_forecasting": (
+        "Short-term stock price forecasting employs a machine learning model (Facebook Prophet Model). "
+        "Prophet decomposes time series data into trend, seasonality, and holiday effects. "
+        "These model analyzes historical data to predict future prices, helping you make informed decisions such as Buy or Sell."
+    ),
+    "long_term_projection": (
+        "Long-term projections use Monte Carlo simulations to estimate future portfolio performance. "
+        "Simulations are run using historical data to generate cumulative returns, providing insights into the expected range of returns and associated risks. "
+        "The simulations account for random sampling of returns, generating a range of potential outcomes and confidence intervals which shows the predicted amount the portfolio will end within for a specified number of years"
+    ),
+    "number_years": (
+        "To view the long-term projections, select the number of years you would like to forecast. "
+        "The number of years determines the duration over which the future portfolio performance is projected, affecting the range and accuracy of the simulated outcomes."
+    ),
+}
 
 def botfolio():
 # = st.sidebar.checkbox('Forecast')
-    
+    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
     message("Welcome to OptiFi! Let's get started by collecting some information about you to determine your risk capacity.", is_user=False, avatar_style="avataaars",seed=avatar_url)
-    st.subheader("Risk Capacity Assessment", divider='green')
-    user_age = st.text_input('Age', placeholder='Enter your age').strip()
+    st.subheader("Risk Capacity Assessment", divider='green', help=tooltips["risk_capacity"])
+    user_age = st.text_input('Age', placeholder='Enter your age', help=tooltips["age"]).strip()
     investment_horizon = st.selectbox(
     "Select your investment horizon",
     options=[
     "Short-Term",
     "Medium-Term",
     "Long-Term",
-    ]
+    ],
+    help=tooltips["investment_horizon"]
     )
-    investment_amount = st.text_input('Investment Amount', placeholder='Enter your investment amount in USD').strip()
+    investment_amount = st.text_input('Investment Amount', placeholder='Enter your investment amount in USD', help=tooltips["investment_amount"]).strip()
     income = st.selectbox(
     "Select your annual income range:",
     options=[
@@ -440,7 +494,8 @@ def botfolio():
             "$100,000 - $149,999",
             "$150,000 - $199,999",
             "More than $200,000"
-        ]
+        ],
+    help=tooltips["income"]
     )
 
     # Reset session state if necessary
@@ -464,9 +519,11 @@ def botfolio():
                 f" \nand I am willing to invest USD${investment_amount}\n"
                 f" for an investment horizon of {investment_horizon}"
         )
+        st.markdown("<div style='text-align: right; font-weight: bold; color: cyan; font-size: 17px;'>You</div>", unsafe_allow_html=True)
         message(user_details, is_user=True, avatar_style="thumbs",seed=avatar_user)
 
         age_verification_message = user_age_verification(user_age)
+        st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
         message(age_verification_message, is_user=False, avatar_style="avataaars",seed=avatar_url)
 
         if "Enjoy the use" in age_verification_message:
@@ -478,8 +535,9 @@ def botfolio():
             else:
                 risk_capacity_level = "Low"
             #message(f"Your risk capacity is: {risk_capacity} and {risk_capacity_level}", seed=21, key=18)
+            st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
             message(f"Based on your inputs, I have determined that you have a {risk_capacity_level} risk capacity.\n\n Next, please complete the risk tolerance questionnaire below to allow me to determine your risk tolerance:", is_user=False, avatar_style="avataaars",seed=avatar_url)
-            st.subheader("Risk Tolerance Questionnaire", divider='blue')
+            st.subheader("Risk Tolerance Questionnaire", divider='blue',help=tooltips["risk_tolerance"])
             if "submit_clicked" not in st.session_state:
                 st.session_state.submit_clicked = False
             current_question = st.session_state.current_question
@@ -551,7 +609,7 @@ def botfolio():
                             risk_level = "Below-average tolerance for risk"
                         else:
                             risk_level = "Low tolerance for risk"
-
+                        st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                         message(f"Your risk tolerance score is {risk_score}, indicating a {risk_level}.", is_user=False, avatar_style="avataaars",seed=avatar_url)
                         # Display risk score chart
                         fig = display_risk_score_chart(risk_score)
@@ -560,14 +618,14 @@ def botfolio():
                         # Calculate and store composite risk profile
                         composite_risk_profile = calculate_composite_risk_profile(risk_capacity, risk_score)
                         st.session_state.composite_risk_profile = composite_risk_profile
-
+                        st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                         message(f"Your overall risk profile score is: {composite_risk_profile:.2f} \n\n Based on your risk profile, I will now proceed to determine your portfolio type and the recommended allocations. \n\nPlease tick the checkbox below to run the portfolio optimization process", is_user=False, avatar_style="avataaars",seed=avatar_url)
 
                         # Calculate target risk
                         target_risk = map_composite_risk_profile_to_target_risk(composite_risk_profile)
                         target_risk_percentage = target_risk * 100
                         #st.write(f"Your target risk level is: {target_risk:.2f} ({target_risk_percentage:.1f}%)")
-                        if st.checkbox("Run Portfolio Optimization") and not st.session_state.optimization_run:
+                        if st.checkbox("Run Portfolio Optimization",help=tooltips["portfolio_optimization"] ) and not st.session_state.optimization_run:
                             with st.spinner('Creating your portfolio...'):
                                 # Optimize portfolio and store the result
                                 st.subheader("Recommended Portfolio", divider='orange')
@@ -580,26 +638,30 @@ def botfolio():
                             start_date = datetime.today() - timedelta(days=3650)
                         if st.session_state.optimization_run:
                             if not st.session_state.get('forecast_prompt_shown', False):
+                                st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                                 message("Would you like me to display the next 30-day forecasts for the stocks in your portfolio shown above?", is_user=False, avatar_style="avataaars", seed=avatar_url)
                                 st.session_state.forecast_prompt_shown = True
 
                             forecast_selection = st.selectbox("Please select an option from the dropdown menu",
                                                             options=["Select an option", "Yes", "No"],
                                                             index=0,
-                                                            key="forecast_selection")
+                                                            key="forecast_selection", help=tooltips["short_term_forecasting"])
 
                             if forecast_selection == "Yes" and not st.session_state.forecast_yes_clicked:
                                 st.session_state.forecast_yes_clicked = True
                                 st.session_state.forecast_no_clicked = False
                                 # Display user message
+                                st.markdown("<div style='text-align: right; font-weight: bold; color: cyan; font-size: 17px;'>You</div>", unsafe_allow_html=True)
                                 message("Yes, I would like to view the forecasts", is_user=True, avatar_style="thumbs", seed=avatar_user)
                                 # Display chatbot response
+                                st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                                 message("Okay, I will process the forecasts now.", is_user=False, avatar_style="avataaars", seed=avatar_url)
                                 # Pause for 4 seconds
                                 time.sleep(4)
                             elif forecast_selection == "No" and not st.session_state.forecast_no_clicked:
                                 st.session_state.forecast_yes_clicked = False
                                 st.session_state.forecast_no_clicked = True
+                                st.markdown("<div style='text-align: right; font-weight: bold; color: cyan; font-size: 17px;'>You</div>", unsafe_allow_html=True)
                                 message("No, I would not like to view the forecasts", is_user=True, avatar_style="thumbs", seed=avatar_user)
                                 time.sleep(4)
 
@@ -612,22 +674,25 @@ def botfolio():
 
                             if st.session_state.forecasts_processed or st.session_state.forecast_no_clicked:
                                 #if not st.session_state.get('monte_prompt_shown', False):
+                                st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                                 message("Would you like to view the long-term projected returns of the recommended portfolio?", is_user=False, avatar_style="avataaars", seed=avatar_url)
                                     
 
                                 monte_selection = st.selectbox("Please select an option from the dropdown menu",
                                                             options=["Select an option", "Yes", "No"],
                                                             index=0,
-                                                            key="monte_selection")
+                                                            key="monte_selection", help=tooltips["long_term_projection"])
 
                                 if monte_selection == "Yes":
                                     st.session_state.monte_yes_clicked = True
                                     st.session_state.monte_no_clicked = False
+                                    st.markdown("<div style='text-align: right; font-weight: bold; color: cyan; font-size: 17px;'>You</div>", unsafe_allow_html=True)
                                     message("Yes, I would like to view the long-term projected returns", is_user=True, avatar_style="thumbs", seed=avatar_user)
+                                    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                                     message("Okay, I will process the long-term projected simulation.\n\n Please enter the number of years you would like to project for, and to begin the processing, tick the checkbox to run the simulation", is_user=False, avatar_style="avataaars", seed=avatar_url)
                                     time.sleep(4)  # Pause for 4 seconds
                                     st.subheader("Long-term Project Returns Simulations", divider='red')
-                                    years_to_simulate = st.text_input('Number of years to simulate:', placeholder='Enter a number between 1 and 30')
+                                    years_to_simulate = st.text_input('Number of years to simulate:', placeholder='Enter a number between 1 and 30', help=tooltips["number_years"])
 
                                     if st.checkbox("Run Simulation"):
                                         if years_to_simulate:
@@ -678,6 +743,7 @@ def botfolio():
                                                     # Plot the simulation results
                                                     fig = sim_returns.plot_simulation_fig()
                                                     st.plotly_chart(fig)
+                                                    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                                                     message("Thank you for using OptiFi! To create a new portfolio, please restart in a new session or amend your current inputs.", is_user=False, avatar_style="avataaars", seed=avatar_url)
                                                 else:
                                                     st.error("Optimal portfolio not found. Please complete the previous steps.")
@@ -686,8 +752,10 @@ def botfolio():
                                     st.session_state.monte_no_clicked = True
                                     message("No, I would not like to view the long-term projected returns", is_user=True, avatar_style="thumbs", seed=avatar_user)
                                     time.sleep(4)
+                                    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                                     message("Thank you for using OptiFi! To create a new portfolio, please restart in a new session or amend your current inputs.", is_user=False, avatar_style="avataaars", seed=avatar_url)
                     else:
+                        st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                         message("Please answer all questions before submitting.", is_user=False, avatar_style="avataaars", seed=avatar_url)
 
 botfolio()
