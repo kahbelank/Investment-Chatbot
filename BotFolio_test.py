@@ -1,5 +1,4 @@
 import time
-from tkinter import Image
 import requests
 import streamlit as st
 from streamlit_chat import message
