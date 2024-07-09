@@ -8,7 +8,6 @@ import plotly.graph_objects as go
 import pandas as pd 
 import time 
 from pathlib import Path
-from prophet import Prophet
 from datetime import datetime, timedelta
 import yahoo_fin.stock_info as si
 
