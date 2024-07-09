@@ -7,3 +7,4 @@ prophet
 yahoo_fin
 scipy
 numpy
+streamlit_extras
