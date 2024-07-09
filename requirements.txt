@@ -1,0 +1,9 @@
+streamlit
+streamlit_chat
+joblib
+pandas
+plotly
+prophet
+yahoo_fin
+scipy
+numpy
