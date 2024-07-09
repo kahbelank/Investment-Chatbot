@@ -573,13 +573,13 @@ def botfolio():
                 if current_question > 0:
                     if st.button("Previous"):
                         st.session_state.current_question -= 1
-                        st.experimental_rerun()
+                        st.rerun()
 
             with col2:
                 if current_question < len(RISK_QUESTIONS) - 1:
                     if st.button("Next"):
                         st.session_state.current_question += 1
-                        st.experimental_rerun()
+                        st.rerun()
         
             if "risk_score" not in st.session_state:
                 st.session_state.risk_score = None
