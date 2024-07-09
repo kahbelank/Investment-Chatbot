@@ -67,6 +67,7 @@ st.markdown(
         line-height: 1.5;
         margin: 0;
     }
+    .stDeployButton {display:none;}
     </style>
     """,
     unsafe_allow_html=True,
