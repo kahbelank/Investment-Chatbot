@@ -3,8 +3,8 @@ streamlit_chat
 joblib
 pandas
 plotly
-prophet
+prophet==1.1.1
 yahoo_fin
 scipy
-numpy
+numpy==1.21.4
 streamlit_extras
