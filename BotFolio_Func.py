@@ -1,4 +1,5 @@
 # import libraries 
+import os
 import joblib
 from streamlit_chat import message
 import streamlit as st
@@ -116,7 +117,8 @@ def display_forecasts_from_data(df, ticker, periods=30):
     df.rename(columns={'Date': 'ds', 'Close': 'y'}, inplace=True)
     df.dropna(inplace=True)
 
-    model_filename = f"Machine Learning\Models\{ticker}_prophet_model.pkl"
+    # model_filename = f"Machine Learning\Models\{ticker}_prophet_model.pkl"
+    model_filename = os.path.join("Machine Learning", "Models", f"{ticker}_prophet_model.pkl")
     try:
         model = joblib.load(model_filename)
     except Exception as e:
