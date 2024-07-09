@@ -7,3 +7,4 @@ yahoo_fin
 scipy
 numpy==1.24.4
 streamlit_extras
+prophet==1.1.1
