@@ -469,6 +469,17 @@ tooltips = {
     ),
 }
 
+def add_scroll_js(element_id):
+    scroll_script = f"""
+    <script>
+    var element = document.getElementById('{element_id}');
+    if (element) {{
+        element.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+    }}
+    </script>
+    """
+    st.markdown(scroll_script, unsafe_allow_html=True)
+
 def botfolio():
 # = st.sidebar.checkbox('Forecast')
     st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
@@ -535,8 +546,12 @@ def botfolio():
             else:
                 risk_capacity_level = "Low"
             #message(f"Your risk capacity is: {risk_capacity} and {risk_capacity_level}", seed=21, key=18)
+             # Add the message with a unique ID
+            message_id = "risk_capacity_message"
+            st.markdown(f"<div id='{message_id}'></div>", unsafe_allow_html=True)
             st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
             message(f"Based on your inputs, I have determined that you have a {risk_capacity_level} risk capacity.\n\n Next, please complete the risk tolerance questionnaire below to allow me to determine your risk tolerance:", is_user=False, avatar_style="avataaars",seed=avatar_url)
+            add_scroll_js(message_id)           
             st.subheader("Risk Tolerance Questionnaire", divider='blue',help=tooltips["risk_tolerance"])
             if "submit_clicked" not in st.session_state:
                 st.session_state.submit_clicked = False
@@ -743,6 +758,8 @@ def botfolio():
                                                     # Plot the simulation results
                                                     fig = sim_returns.plot_simulation_fig()
                                                     st.plotly_chart(fig)
+                                                    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
+                                                    message("The simulation has been completed. The results are displayed above. When hovering over the plot, the values e.g. (130, 2.4362) represent the number of trading days and the cumulative return of the portfolio respectively.", is_user=False, avatar_style="avataaars", seed=avatar_url)
                                                     st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                                                     message("Thank you for using OptiFi! To create a new portfolio, please restart in a new session or amend your current inputs.", is_user=False, avatar_style="avataaars", seed=avatar_url)
                                                 else:
