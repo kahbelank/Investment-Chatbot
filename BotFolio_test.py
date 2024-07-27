@@ -432,6 +432,7 @@ tooltips = {
         "We score this based on whether it's short, medium, or long-term."
     ),
     "investment_amount": (
+        "The amount you would like to invest should start from a minimum of USD$100 for the OptiFi chatbot to give more meaningful recommendations."
         "Larger investment amounts suggest a greater ability to handle losses, indicating a higher risk capacity. "
         "We normalize this amount to a scale to make sure very large amounts don't overly influence the score."
     ),
@@ -480,6 +481,20 @@ def add_scroll_js(element_id):
     """
     st.markdown(scroll_script, unsafe_allow_html=True)
 
+
+def validate_investment_amount(amount):
+    if not amount:  # Check if the input is empty
+        return None
+    try:
+        amount = float(amount)
+        if amount < 100:
+            st.error("A minimum investment amount of USD$100 is required for more meaningful recommendations.")
+            return None
+        return amount
+    except ValueError:
+        st.error("Invalid investment amount, please enter a valid number from USD$100 onwards.")
+        return None
+
 def botfolio():
 # = st.sidebar.checkbox('Forecast')
     st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
@@ -516,7 +531,10 @@ def botfolio():
         st.session_state.current_question = 0
         st.session_state.answers = [None] * len(RISK_QUESTIONS)
 
-    if user_age and investment_horizon and investment_amount and income:
+    # Validate investment amount
+    valid_investment_amount = validate_investment_amount(investment_amount)
+
+    if user_age and investment_horizon and valid_investment_amount is not None and income:
         if income in [
             "$30,000 - $49,999",
             "$50,000 - $99,999",
@@ -642,6 +660,9 @@ def botfolio():
                         #st.write(f"Your target risk level is: {target_risk:.2f} ({target_risk_percentage:.1f}%)")
                         if st.checkbox("Run Portfolio Optimization",help=tooltips["portfolio_optimization"] ) and not st.session_state.optimization_run:
                             with st.spinner('Creating your portfolio...'):
+                                st.toast("Processing your request... Please wait.", icon="⏳")
+                                time.sleep(1)
+                                st.toast("This may take up to 1-2 minutes...", icon="⏳")
                                 # Optimize portfolio and store the result
                                 st.subheader("Recommended Portfolio", divider='orange')
                                 portfolio_optimization(int(user_age), investment_horizon, float(investment_amount), income, risk_score, target_risk)
@@ -651,10 +672,10 @@ def botfolio():
 
             
                             start_date = datetime.today() - timedelta(days=3650)
+                            st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
+                            message("Would you like me to display the next 30-day forecasts for the stocks in your portfolio shown above?", is_user=False, avatar_style="avataaars", seed=avatar_url)
                         if st.session_state.optimization_run:
                             if not st.session_state.get('forecast_prompt_shown', False):
-                                st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
-                                message("Would you like me to display the next 30-day forecasts for the stocks in your portfolio shown above?", is_user=False, avatar_style="avataaars", seed=avatar_url)
                                 st.session_state.forecast_prompt_shown = True
 
                             forecast_selection = st.selectbox("Please select an option from the dropdown menu",
@@ -663,6 +684,10 @@ def botfolio():
                                                             key="forecast_selection", help=tooltips["short_term_forecasting"])
 
                             if forecast_selection == "Yes" and not st.session_state.forecast_yes_clicked:
+                                st.toast("Running the short term predictions... Please wait.", icon="⏳")
+                                time.sleep(1)
+                                st.toast("This may take up to 1-2 minutes...", icon="⏳")
+                                time.sleep(15)
                                 st.session_state.forecast_yes_clicked = True
                                 st.session_state.forecast_no_clicked = False
                                 # Display user message
@@ -699,6 +724,10 @@ def botfolio():
                                                             key="monte_selection", help=tooltips["long_term_projection"])
 
                                 if monte_selection == "Yes":
+                                    st.toast("Running the long term projections... Please wait.", icon="⏳")
+                                    time.sleep(1)
+                                    st.toast("This may take a 1 to 2 minutes..", icon="⏳")
+                                    time.sleep(15)
                                     st.session_state.monte_yes_clicked = True
                                     st.session_state.monte_no_clicked = False
                                     st.markdown("<div style='text-align: right; font-weight: bold; color: cyan; font-size: 17px;'>You</div>", unsafe_allow_html=True)
@@ -754,10 +783,14 @@ def botfolio():
 
                                                     st.write(f"Lower Implied Annual Return: {lower_annual_return * 100:.2f}%")
                                                     st.write(f"Upper Implied Annual Return: {upper_annual_return * 100:.2f}%")
+                                                    
+                                                    st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
+                                                    message("Please kindly hold on, while the simulation graph is being generated", is_user=False, avatar_style="avataaars", seed=avatar_url)
 
+                                                    with st.spinner("Plotting simulations..."):
                                                     # Plot the simulation results
-                                                    fig = sim_returns.plot_simulation_fig()
-                                                    st.plotly_chart(fig)
+                                                        fig = sim_returns.plot_simulation_fig()
+                                                        st.plotly_chart(fig)
                                                     st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
                                                     message("The simulation has been completed. The results are displayed above. When hovering over the plot, the values e.g. (130, 2.4362) represent the number of trading days and the cumulative return of the portfolio respectively.", is_user=False, avatar_style="avataaars", seed=avatar_url)
                                                     st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)

@@ -59,6 +59,8 @@ def calculate_technical_indicators(data):
     data.dropna(inplace=True)
     return data
 
+
+# @st.cache_data
 # Function to fetch historical data for a stock based on today's date
 def fetch_historical_data(ticker, start_date):
     try:
@@ -109,6 +111,15 @@ def fetch_historical_data(ticker, start_date):
 #     return fig
 
 
+# @st.cache_resource
+def load_model(model_filename):
+    try:
+        model = joblib.load(model_filename)
+        return model
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return None
+
 def display_forecasts_from_data(df, ticker, periods=30):
     if df.empty:
         print(f"Error: Empty DataFrame for {ticker}")
@@ -120,7 +131,7 @@ def display_forecasts_from_data(df, ticker, periods=30):
     # model_filename = f"Machine Learning\Models\{ticker}_prophet_model.pkl"
     model_filename = os.path.join("Machine Learning", "Models", f"{ticker}_prophet_model.pkl")
     try:
-        model = joblib.load(model_filename)
+        model = load_model(model_filename)
     except Exception as e:
         print(f"Error loading model for {ticker}: {e}")
         return
