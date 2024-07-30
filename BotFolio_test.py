@@ -569,7 +569,7 @@ def botfolio():
             st.markdown(f"<div id='{message_id}'></div>", unsafe_allow_html=True)
             st.markdown("<div style='text-align: left; font-weight: bold; color: pink;font-size: 17px;'>OptiFi</div>", unsafe_allow_html=True)
             message(f"Based on your inputs, I have determined that you have a {risk_capacity_level} risk capacity.\n\n Next, please complete the risk tolerance questionnaire below to allow me to determine your risk tolerance:", is_user=False, avatar_style="avataaars",seed=avatar_url)
-            add_scroll_js(message_id)           
+            # add_scroll_js(message_id)           
             st.subheader("Risk Tolerance Questionnaire", divider='blue',help=tooltips["risk_tolerance"])
             if "submit_clicked" not in st.session_state:
                 st.session_state.submit_clicked = False
@@ -684,8 +684,8 @@ def botfolio():
                                                             key="forecast_selection", help=tooltips["short_term_forecasting"])
 
                             if forecast_selection == "Yes" and not st.session_state.forecast_yes_clicked:
-                                st.toast("Running the short term predictions... Please wait.", icon="⏳")
-                                time.sleep(1)
+                                # st.toast("Running the short term predictions... Please wait.", icon="⏳")
+                                # time.sleep(1)
                                 st.toast("This may take up to 1-2 minutes...", icon="⏳")
                                 time.sleep(15)
                                 st.session_state.forecast_yes_clicked = True
